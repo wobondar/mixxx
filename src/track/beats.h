@@ -329,6 +329,14 @@ class Beats : private std::enable_shared_from_this<Beats> {
         return findNextBeat(mixxx::audio::kStartFramePos);
     }
 
+    /// Return the frame position of the grid's anchor beat (the last beat
+    /// marker). For a constant-tempo grid this is the beat the grid was
+    /// anchored on — grids imported from rekordbox anchor on the first
+    /// downbeat — which makes it the bar-phase reference for rendering.
+    audio::FramePos anchorPosition() const {
+        return m_lastMarkerPosition;
+    }
+
     /// Starting from frame position `position`, return the frame position of
     /// the closest beat in the track, or an invalid position if none exists.
     audio::FramePos findClosestBeat(audio::FramePos position) const;
