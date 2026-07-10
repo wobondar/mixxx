@@ -38,6 +38,7 @@ class allshader::WaveformRenderBeat final
 
   private:
     QColor m_color;
+    QColor m_accentColor;
     bool m_isSlipRenderer;
 
     bool preprocessInner();
