@@ -1,0 +1,56 @@
+name: Build for Raspberry Pi 5
+
+# Manual-only: dispatch from any branch carrying this file; the optional
+# ref input overrides which ref gets built (empty = the dispatching branch).
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (empty = the branch you dispatched from)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Debian Trixie arm64 (rig-compatible)
+    runs-on: ubuntu-24.04-arm
+    # The rig runs Debian 13; building inside a trixie container keeps the
+    # binary linked against the same glibc/Qt the rig has.
+    container: debian:trixie
+    steps:
+      - name: Bootstrap container
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git sudo ca-certificates cmake ninja-build
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+      - name: Install Mixxx build dependencies
+        run: |
+          git config --global --add safe.directory "$PWD"
+          DEBIAN_FRONTEND=noninteractive ./tools/debian_buildenv.sh setup
+      - name: Configure
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DQT6=ON
+          -DCMAKE_INSTALL_PREFIX=/usr/local
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - name: Stage install tree
+        run: |
+          DESTDIR="$PWD/staging" cmake --install build
+          SHA="$(git rev-parse --short HEAD)"
+          tar -C staging -czf "mixxx-rpi5-${SHA}.tar.gz" .
+          ls -lh mixxx-rpi5-*.tar.gz
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixxx-rpi5
+          path: mixxx-rpi5-*.tar.gz
+          retention-days: 14
