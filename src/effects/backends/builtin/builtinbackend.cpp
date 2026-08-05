@@ -10,6 +10,7 @@
 #include "effects/backends/builtin/flangereffect.h"
 #include "effects/backends/builtin/graphiceqeffect.h"
 #include "effects/backends/builtin/linkwitzriley8eqeffect.h"
+#include "effects/backends/builtin/filterlfoeffect.h"
 #include "effects/backends/builtin/moogladder4filtereffect.h"
 #include "effects/backends/builtin/parametriceqeffect.h"
 #include "effects/backends/builtin/threebandbiquadeqeffect.h"
@@ -20,14 +21,17 @@
 #include "effects/backends/builtin/compressoreffect.h"
 #include "effects/backends/builtin/distortioneffect.h"
 #include "effects/backends/builtin/echoeffect.h"
+#include "effects/backends/builtin/echov2effect.h"
 #include "effects/backends/builtin/glitcheffect.h"
 #include "effects/backends/builtin/loudnesscontoureffect.h"
 #include "effects/backends/builtin/metronomeeffect.h"
 #include "effects/backends/builtin/phasereffect.h"
+#include "effects/backends/builtin/phaserv2effect.h"
 #ifdef __RUBBERBAND__
 #include "effects/backends/builtin/pitchshifteffect.h"
 #endif
 #include "effects/backends/builtin/tremoloeffect.h"
+#include "effects/backends/builtin/tremolov2effect.h"
 #include "effects/backends/builtin/whitenoiseeffect.h"
 
 BuiltInBackend::BuiltInBackend() {
@@ -45,19 +49,23 @@ BuiltInBackend::BuiltInBackend() {
     // Fading Effects
     registerEffect<FilterEffect>();
     registerEffect<MoogLadder4FilterEffect>();
+    registerEffect<FilterLFOEffect>();
     registerEffect<BitCrusherEffect>();
     registerEffect<WhiteNoiseEffect>();
     registerEffect<BalanceEffect>();
     // Fancy effects
     registerEffect<FlangerEffect>();
     registerEffect<EchoEffect>();
+    registerEffect<EchoV2Effect>();
     registerEffect<AutoPanEffect>();
 #ifndef __MACAPPSTORE__
     registerEffect<ReverbEffect>();
 #endif
     registerEffect<PhaserEffect>();
+    registerEffect<PhaserV2Effect>();
     registerEffect<MetronomeEffect>();
     registerEffect<TremoloEffect>();
+    registerEffect<TremoloV2Effect>();
 #ifdef __RUBBERBAND__
     registerEffect<PitchShiftEffect>();
 #endif
