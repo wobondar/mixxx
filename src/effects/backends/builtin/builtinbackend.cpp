@@ -10,7 +10,9 @@
 #include "effects/backends/builtin/flangereffect.h"
 #include "effects/backends/builtin/graphiceqeffect.h"
 #include "effects/backends/builtin/linkwitzriley8eqeffect.h"
+#include "effects/backends/builtin/enigmajeteffect.h"
 #include "effects/backends/builtin/filterlfoeffect.h"
+#include "effects/backends/builtin/mobiussaweffect.h"
 #include "effects/backends/builtin/moogladder4filtereffect.h"
 #include "effects/backends/builtin/parametriceqeffect.h"
 #include "effects/backends/builtin/threebandbiquadeqeffect.h"
@@ -25,11 +27,13 @@
 #include "effects/backends/builtin/glitcheffect.h"
 #include "effects/backends/builtin/loudnesscontoureffect.h"
 #include "effects/backends/builtin/metronomeeffect.h"
+#include "effects/backends/builtin/noisesweepeffect.h"
 #include "effects/backends/builtin/phasereffect.h"
 #include "effects/backends/builtin/phaserv2effect.h"
 #ifdef __RUBBERBAND__
 #include "effects/backends/builtin/pitchshifteffect.h"
 #endif
+#include "effects/backends/builtin/sweepeffect.h"
 #include "effects/backends/builtin/tremoloeffect.h"
 #include "effects/backends/builtin/tremolov2effect.h"
 #include "effects/backends/builtin/whitenoiseeffect.h"
@@ -50,6 +54,10 @@ BuiltInBackend::BuiltInBackend() {
     registerEffect<FilterEffect>();
     registerEffect<MoogLadder4FilterEffect>();
     registerEffect<FilterLFOEffect>();
+    registerEffect<EnigmaJetEffect>();
+    registerEffect<MobiusSawEffect>();
+    registerEffect<NoiseSweepEffect>();
+    registerEffect<SweepEffect>();
     registerEffect<BitCrusherEffect>();
     registerEffect<WhiteNoiseEffect>();
     registerEffect<BalanceEffect>();

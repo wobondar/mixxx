@@ -1219,7 +1219,11 @@ add_library(
   src/effects/backends/builtin/distortioneffect.cpp
   src/effects/backends/builtin/echoeffect.cpp
   src/effects/backends/builtin/echov2effect.cpp
+  src/effects/backends/builtin/enigmajeteffect.cpp
   src/effects/backends/builtin/filterlfoeffect.cpp
+  src/effects/backends/builtin/mobiussaweffect.cpp
+  src/effects/backends/builtin/noisesweepeffect.cpp
+  src/effects/backends/builtin/sweepeffect.cpp
   src/effects/backends/builtin/filtereffect.cpp
   src/effects/backends/builtin/flangereffect.cpp
   src/effects/backends/builtin/glitcheffect.cpp
