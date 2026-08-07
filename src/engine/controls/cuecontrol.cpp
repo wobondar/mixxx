@@ -2499,10 +2499,19 @@ void CueControl::slotLoopUpdated(mixxx::audio::FramePos startPosition,
         return;
     }
 
-    DEBUG_ASSERT(pSavedLoopControl->getStatus() == HotcueControl::Status::Active);
-    pCue->setStartPosition(startPosition);
-    pCue->setEndPosition(endPosition);
-    DEBUG_ASSERT(pSavedLoopControl->getStatus() == HotcueControl::Status::Active);
+    if (pCue->getPosition() == startPosition &&
+            pCue->getEndPosition() == endPosition) {
+        // No actual change (e.g. the activation of this saved loop).
+        return;
+    }
+
+    // Saved loops are immutable: hardware players move only the session
+    // loop when an active loop is adjusted - the stored cue never follows.
+    // Upstream instead live-links the active saved loop and writes every
+    // move/resize back into the cue. Detach the link here: the hotcue
+    // keeps its stored positions and the adjusted loop plays on as a
+    // plain session loop.
+    slotLoopReset();
 }
 
 void CueControl::setHotcueFocusIndex(int hotcueIndex) {
