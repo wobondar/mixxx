@@ -9,9 +9,10 @@
 
 class EchoV2GroupState : public EffectState {
   public:
-    // 3 seconds max. This supports the full range of 2 beats for tempos down to
-    // 40 BPM.
-    static constexpr int kMaxDelaySeconds = 3;
+    // 8 seconds max. This supports the full range of 16 beats for tempos
+    // down to 120 BPM; slower tempos clamp at the buffer (the beats ladder
+    // blinks at the wall instead of lying).
+    static constexpr int kMaxDelaySeconds = 8;
 
     EchoV2GroupState(const mixxx::EngineParameters& engineParameters)
             : EffectState(engineParameters) {

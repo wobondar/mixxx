@@ -46,11 +46,12 @@ EffectManifestPointer EchoV2Effect::getManifest() {
     delay->setShortName(QObject::tr("Time"));
     delay->setDescription(QObject::tr(
             "Delay time\n"
-            "1/16 - 2 beats if tempo is detected\n"
-            "1/16 - 2 seconds if no tempo is detected"));
+            "1/16 - 16 beats if tempo is detected\n"
+            "1/16 - 8 seconds if no tempo is detected\n"
+            "(delays beyond the 8 second buffer are clamped)"));
     delay->setValueScaler(EffectManifestParameter::ValueScaler::Linear);
     delay->setUnitsHint(EffectManifestParameter::UnitsHint::Beats);
-    delay->setRange(0.0, 0.5, 2.0);
+    delay->setRange(0.0, 0.5, 16.0);
 
     EffectManifestParameterPointer feedback = pManifest->addParameter();
     feedback->setId("feedback_amount");
