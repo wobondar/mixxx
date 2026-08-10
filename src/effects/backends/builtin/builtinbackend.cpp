@@ -10,7 +10,9 @@
 #include "effects/backends/builtin/flangereffect.h"
 #include "effects/backends/builtin/graphiceqeffect.h"
 #include "effects/backends/builtin/linkwitzriley8eqeffect.h"
+#include "effects/backends/builtin/colorfiltereffect.h"
 #include "effects/backends/builtin/enigmajeteffect.h"
+#include "effects/backends/builtin/filterfxeffect.h"
 #include "effects/backends/builtin/filterlfoeffect.h"
 #include "effects/backends/builtin/mobiussaweffect.h"
 #include "effects/backends/builtin/moogladder4filtereffect.h"
@@ -54,6 +56,8 @@ BuiltInBackend::BuiltInBackend() {
     registerEffect<FilterEffect>();
     registerEffect<MoogLadder4FilterEffect>();
     registerEffect<FilterLFOEffect>();
+    registerEffect<FilterFXEffect>();
+    registerEffect<ColorFilterEffect>();
     registerEffect<EnigmaJetEffect>();
     registerEffect<MobiusSawEffect>();
     registerEffect<NoiseSweepEffect>();

@@ -160,7 +160,7 @@ EffectManifestPointer FilterLFOEffect::getManifest() {
     EffectManifestPointer pManifest(new EffectManifest());
     pManifest->setId(getId());
     pManifest->setName(QObject::tr("Filter LFO"));
-    pManifest->setShortName(QObject::tr("F.LFO"));
+    pManifest->setShortName(QObject::tr("Filter LFO"));
     pManifest->setAuthor("Daedalus");
     pManifest->setVersion("2.0");
     pManifest->setDescription(QObject::tr(
