@@ -188,7 +188,7 @@ EffectManifestPointer FilterLFOEffect::getManifest() {
             "adds resonance over the upper range"));
     depth->setValueScaler(EffectManifestParameter::ValueScaler::Linear);
     depth->setUnitsHint(EffectManifestParameter::UnitsHint::Unknown);
-    depth->setRange(0, 100, 100);
+    depth->setRange(0, 50, 100);
 
     EffectManifestParameterPointer trim = pManifest->addParameter();
     trim->setId("res_trim");

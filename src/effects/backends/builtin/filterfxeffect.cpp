@@ -269,7 +269,7 @@ EffectManifestPointer FilterFXEffect::getManifest() {
             "knob, fully wet from there on"));
     depth->setValueScaler(EffectManifestParameter::ValueScaler::Linear);
     depth->setUnitsHint(EffectManifestParameter::UnitsHint::Unknown);
-    depth->setRange(0, 100, 100);
+    depth->setRange(0, 50, 100);
 
     EffectManifestParameterPointer resonance = pManifest->addParameter();
     resonance->setId("resonance");
