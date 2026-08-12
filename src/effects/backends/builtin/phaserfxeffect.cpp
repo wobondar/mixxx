@@ -412,10 +412,13 @@ void PhaserFXEffect::processChannel(
             float x = in + fbNow * pState->lastOut[c];
             float* state = pState->apState[c];
             const int stages = pState->stages[c];
+            //  First-order all-pass H(z) = (a - z^-1)/(1 - a z^-1),
+            //  one state and two multiplies per stage. Pole at z = a,
+            //  stable across the whole sweep.
             for (int s = 0; s < stages; s++) {
-                const float y = state[s] + a * x;
-                x = state[s] - a * y;
-                state[s] = y;
+                const float y = a * x + state[s];
+                state[s] = a * y - x;
+                x = y;
             }
             pState->lastOut[c] = x;
             pOutput[i + c] = gate * (dryNow * in + wetNow * x);
