@@ -30,7 +30,9 @@
 #include "effects/backends/builtin/loudnesscontoureffect.h"
 #include "effects/backends/builtin/metronomeeffect.h"
 #include "effects/backends/builtin/noisesweepeffect.h"
+#include "effects/backends/builtin/panfxeffect.h"
 #include "effects/backends/builtin/phasereffect.h"
+#include "effects/backends/builtin/phaserfxeffect.h"
 #include "effects/backends/builtin/phaserv2effect.h"
 #ifdef __RUBBERBAND__
 #include "effects/backends/builtin/pitchshifteffect.h"
@@ -70,11 +72,13 @@ BuiltInBackend::BuiltInBackend() {
     registerEffect<EchoEffect>();
     registerEffect<EchoV2Effect>();
     registerEffect<AutoPanEffect>();
+    registerEffect<PanFXEffect>();
 #ifndef __MACAPPSTORE__
     registerEffect<ReverbEffect>();
 #endif
     registerEffect<PhaserEffect>();
     registerEffect<PhaserV2Effect>();
+    registerEffect<PhaserFXEffect>();
     registerEffect<MetronomeEffect>();
     registerEffect<TremoloEffect>();
     registerEffect<TremoloV2Effect>();
