@@ -37,8 +37,8 @@ inline qhash_seed_t qHash(
     return qHash(static_cast<uint>(stage), seed);
 };
 
-constexpr int kNumStandardEffectUnits = 4;
-constexpr int kNumEffectsPerUnit = 4;
+constexpr int kNumStandardEffectUnits = 6;
+constexpr int kNumEffectsPerUnit = 6;
 
 const QString kNoEffectString = QStringLiteral("---");
 
