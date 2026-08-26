@@ -2,6 +2,7 @@
 
 #include <QDomNode>
 
+#include "engine/engine.h"
 #include "moc_waveformrenderbeat.cpp"
 #include "rendergraph/geometry.h"
 #include "rendergraph/material/rgbamaterial.h"
@@ -9,6 +10,8 @@
 #include "skin/legacy/skincontext.h"
 #include "track/track.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
+#include "waveform/waveform.h"
+#include "waveform/waveformwidgetfactory.h"
 #include "widget/wskincolor.h"
 
 using namespace rendergraph;
@@ -62,6 +65,11 @@ bool WaveformRenderBeat::preprocessInner() {
     if (!trackInfo || (m_isSlipRenderer && !m_waveformRenderer->isSlipActive())) {
         return false;
     }
+
+    const bool isStemTrack = trackInfo && trackInfo->hasStem() &&
+            trackInfo->getWaveform() && trackInfo->getWaveform()->hasStem();
+    const bool splitStemTracks = isStemTrack &&
+            WaveformWidgetFactory::instance()->isStemSplitTracks();
 
     auto positionType = m_isSlipRenderer ? ::WaveformRendererAbstract::Slip
                                          : ::WaveformRendererAbstract::Play;
@@ -127,7 +135,10 @@ bool WaveformRenderBeat::preprocessInner() {
         }
     }
 
-    const int reserved = numBeatsInRange * numVerticesPerLine +
+    const int numBoxesPerBeat = (m_isSlipRenderer && splitStemTracks)
+            ? mixxx::kMaxSupportedStems
+            : 1;
+    const int reserved = numBeatsInRange * numVerticesPerLine * numBoxesPerBeat +
             numAccentsInRange * numVerticesPerAccent;
     geometry().allocate(reserved);
 
@@ -144,6 +155,9 @@ bool WaveformRenderBeat::preprocessInner() {
             static_cast<float>(m_color.alphaF())};
 
     const float breadth = m_isSlipRenderer ? rendererBreadth / 2 : rendererBreadth;
+    const float boxBreadth = splitStemTracks
+            ? rendererBreadth / static_cast<float>(mixxx::kMaxSupportedStems)
+            : rendererBreadth;
 
     beatIndex = static_cast<int>(itFirstInRange - anchorIt);
     for (auto it = itFirstInRange;
@@ -159,7 +173,15 @@ bool WaveformRenderBeat::preprocessInner() {
         const float x1 = static_cast<float>(xBeatPoint);
         const float x2 = x1 + 1.f;
 
-        vertexUpdater.addRectangle({x1, 0.f}, {x2, breadth}, lineRgba);
+        if (m_isSlipRenderer && splitStemTracks) {
+            for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; ++stemIdx) {
+                const float posy1 = stemIdx * boxBreadth;
+                const float posy2 = posy1 + boxBreadth / 2.f;
+                vertexUpdater.addRectangle({x1, posy1}, {x2, posy2}, lineRgba);
+            }
+        } else {
+            vertexUpdater.addRectangle({x1, 0.f}, {x2, breadth}, lineRgba);
+        }
 
         if (((beatIndex % 4) + 4) % 4 == 0) {
             const float xMid = x1 + 0.5f;
