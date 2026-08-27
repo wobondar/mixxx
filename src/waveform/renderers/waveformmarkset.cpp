@@ -1,7 +1,9 @@
 #include "waveformmarkset.h"
 
 #include <QtDebug>
+#include <algorithm>
 #include <set>
+#include <vector>
 
 #include "util/defs.h"
 
@@ -140,18 +142,40 @@ void WaveformMarkSet::update() {
             std::back_inserter(m_marksToRender),
             [](auto const& pair) { return pair.second; });
 
-    double prevSamplePosition = Cue::kNoPosition;
+    // Marks this close ride the same line on screen: a cue quantized to the
+    // engine's beatgrid and the same beat imported from another program
+    // differ by a handful of samples, never by a musical distance.
+    constexpr double kStackToleranceSamples = 500.0;
 
-    // Avoid overlapping marks by increasing the level per alignment.
-    // We take this into account when drawing the marks aligned at:
-    // left top, right top, left bottom, right bottom.
-    std::map<Qt::Alignment, int> levels;
-    for (auto& pMark : m_marksToRender) {
-        if (pMark->getSamplePosition() != prevSamplePosition) {
-            prevSamplePosition = pMark->getSamplePosition();
-            levels.clear();
+    // Avoid overlapping marks by stacking each group of near-coincident marks
+    // per vertical lane. Levels follow mark priority, not sub-sample position,
+    // so the stack order is stable: loop marks at the edge, then the cue,
+    // then hotcues.
+    auto groupBegin = m_marksToRender.begin();
+    while (groupBegin != m_marksToRender.end()) {
+        const double anchorPosition = (*groupBegin)->getSamplePosition();
+        auto groupEnd = groupBegin + 1;
+        while (groupEnd != m_marksToRender.end() &&
+                (*groupEnd)->getSamplePosition() <=
+                        anchorPosition + kStackToleranceSamples) {
+            ++groupEnd;
         }
-        pMark->setLevel(levels[pMark->m_align]++);
+        std::map<Qt::Alignment, std::vector<WaveformMarkPointer>> lanes;
+        for (auto it = groupBegin; it != groupEnd; ++it) {
+            lanes[(*it)->m_align & Qt::AlignVertical_Mask].push_back(*it);
+        }
+        for (auto& [align, members] : lanes) {
+            std::sort(members.begin(),
+                    members.end(),
+                    [](const WaveformMarkPointer& pA, const WaveformMarkPointer& pB) {
+                        return pA->getPriority() < pB->getPriority();
+                    });
+            int level = 0;
+            for (auto& pMark : members) {
+                pMark->setLevel(level++);
+            }
+        }
+        groupBegin = groupEnd;
     }
 }
 

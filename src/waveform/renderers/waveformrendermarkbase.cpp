@@ -14,6 +14,10 @@ WaveformRenderMarkBase::WaveformRenderMarkBase(
 void WaveformRenderMarkBase::setup(const QDomNode& node, const SkinContext& context) {
     WaveformSignalColors signalColors = *m_waveformRenderer->getWaveformSignalColors();
     m_marks.setup(m_waveformRenderer->getGroup(), node, context, signalColors);
+    // Loop marks move without a cuesUpdated signal, so re-stack the labels on
+    // any position change, not only on cue and visibility changes.
+    m_marks.connectSamplePositionChanged(this, &WaveformRenderMarkBase::onMarkChanged);
+    m_marks.connectSampleEndPositionChanged(this, &WaveformRenderMarkBase::onMarkChanged);
     m_marks.connectVisibleChanged(this, &WaveformRenderMarkBase::onMarkChanged);
 }
 
@@ -65,7 +69,7 @@ void WaveformRenderMarkBase::updateMarksFromCues() {
         // Here we assume no two cues can have the same hotcue assigned,
         // because WaveformMarkSet stores one mark for each hotcue.
         WaveformMarkPointer pMark = m_marks.getHotCueMark(hotCue);
-        if (pMark.isNull()) {
+        if (pMark.isNull() || pMark->isSkinOwned()) {
             continue;
         }
 

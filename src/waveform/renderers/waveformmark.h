@@ -62,6 +62,12 @@ class WaveformMark {
     int getPriority() const {
         return m_iPriority;
     };
+    // True for marks the skin declared on a hotcue control: their text and
+    // colors stay as the skin set them instead of following the cue's label
+    // and color in the database.
+    bool isSkinOwned() const {
+        return m_skinOwned;
+    };
 
     // The m_pPositionCO related function
     bool isValid() const {
@@ -197,6 +203,7 @@ class WaveformMark {
 
     int m_iPriority;
     int m_iHotCue;
+    bool m_skinOwned{};
 
     // Whether this marker is used in the show beats/time until next marker display.
     bool m_showUntilNext;

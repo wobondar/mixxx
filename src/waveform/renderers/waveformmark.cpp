@@ -2,6 +2,7 @@
 
 #include <QOpenGLTexture>
 #include <QPainterPath>
+#include <QRegularExpression>
 #include <QtDebug>
 
 #include "skin/legacy/skincontext.h"
@@ -179,13 +180,26 @@ WaveformMark::WaveformMark(const QString& group,
     QString positionControl;
     QString endPositionControl;
     QString typeControl;
-    if (hotCue != Cue::kNoHotCue) {
-        positionControl = "hotcue_" + QString::number(hotCue + 1) + "_position";
-        endPositionControl = "hotcue_" + QString::number(hotCue + 1) + "_endposition";
-        typeControl = "hotcue_" + QString::number(hotCue + 1) + "_type";
+    if (hotCue == Cue::kNoHotCue) {
+        positionControl = context.selectString(node, "Control");
+        // A skin may bind a mark directly to a hotcue position control.
+        // Adopt the hotcue number so this mark takes the place of the
+        // generated one, while text and colors stay owned by the skin.
+        static const QRegularExpression kHotcuePositionControl(
+                QStringLiteral("^hotcue_(\\d+)_position$"));
+        const auto match = kHotcuePositionControl.match(positionControl);
+        if (match.hasMatch()) {
+            m_iHotCue = match.captured(1).toInt() - 1;
+            m_skinOwned = true;
+        }
+    }
+    if (m_iHotCue != Cue::kNoHotCue) {
+        const QString hotcueNumber = QString::number(m_iHotCue + 1);
+        positionControl = QStringLiteral("hotcue_%1_position").arg(hotcueNumber);
+        endPositionControl = QStringLiteral("hotcue_%1_endposition").arg(hotcueNumber);
+        typeControl = QStringLiteral("hotcue_%1_type").arg(hotcueNumber);
         m_showUntilNext = true;
     } else {
-        positionControl = context.selectString(node, "Control");
         m_showUntilNext = isShowUntilNextPositionControl(positionControl);
     }
 
@@ -224,7 +238,8 @@ WaveformMark::WaveformMark(const QString& group,
     QString markAlign = context.selectString(node, "Align");
     m_align = decodeAlignmentFlags(markAlign, Qt::AlignBottom | Qt::AlignHCenter);
 
-    // Hotcue text is set by the cue's label in the database, not by the skin.
+    // Generated hotcue marks get their text from the cue's label in the
+    // database; skin-declared marks keep the skin's text.
     if (hotCue == Cue::kNoHotCue) {
         m_text = context.selectString(node, "Text");
     }
@@ -368,13 +383,17 @@ class MarkerGeometry {
         const float increment = overlappingMarkerIncrement(
                 static_cast<float>(m_labelRect.height()), breadth);
 
+        // Keep the edge rows clear of the beat accent triangles drawn at the
+        // top and bottom of the waveform.
+        constexpr float kEdgeMargin = 10.f;
+
         if (alignV == Qt::AlignVCenter) {
             m_labelRect.moveTop((m_imageSize.height() - m_labelRect.height()) / 2.f);
         } else if (alignV == Qt::AlignBottom) {
-            m_labelRect.moveBottom(m_imageSize.height() - 0.5f -
+            m_labelRect.moveBottom(m_imageSize.height() - kEdgeMargin - 0.5f -
                     level * increment);
         } else {
-            m_labelRect.moveTop(0.5f + level * increment);
+            m_labelRect.moveTop(kEdgeMargin + 0.5f + level * increment);
         }
     }
     QSize getImageSize(float devicePixelRatio) const {
@@ -452,7 +471,7 @@ QImage WaveformMark::generateImage(float devicePixelRatio) {
     QString label = m_text;
 
     // Determine mark text.
-    if (getHotCue() >= 0) {
+    if (getHotCue() >= 0 && !m_skinOwned) {
         if (!label.isEmpty()) {
             label.prepend(": ");
         }

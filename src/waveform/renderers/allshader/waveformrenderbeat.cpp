@@ -19,8 +19,8 @@ using namespace rendergraph;
 namespace {
 // Marker geometry for the accented (every 4th) beats, rekordbox-style:
 // a small triangle at the top and bottom edge, pointing into the waveform.
-constexpr float kAccentTriangleHalfWidth = 3.5f;
-constexpr float kAccentTriangleHeight = 6.f;
+constexpr float kAccentTriangleHalfWidth = 5.5f;
+constexpr float kAccentTriangleHeight = 9.f;
 } // namespace
 
 namespace allshader {

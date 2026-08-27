@@ -31,12 +31,24 @@ using namespace rendergraph;
 
 namespace {
 
+// Each mark's texture holds both its line and its label box. The two are
+// drawn as separate quads of that one texture, so that all lines can render
+// below all label boxes and no line ever crosses a box.
+enum class MarkPart {
+    Line,
+    Label,
+};
+
 class WaveformMarkNode : public rendergraph::GeometryNode {
   public:
     WaveformMark* m_pOwner{};
 
-    WaveformMarkNode(WaveformMark* pOwner, rendergraph::Context* pContext, const QImage& image)
-            : m_pOwner(pOwner) {
+    WaveformMarkNode(WaveformMark* pOwner,
+            rendergraph::Context* pContext,
+            const QImage& image,
+            MarkPart part)
+            : m_pOwner(pOwner),
+              m_part(part) {
         initForRectangles<TextureMaterial>(1);
         updateTexture(pContext, image);
     }
@@ -46,20 +58,29 @@ class WaveformMarkNode : public rendergraph::GeometryNode {
         m_textureWidth = image.width();
         m_textureHeight = image.height();
     }
-    void update(float x, float y, float devicePixelRatio) {
+    // Draw subRect (in logical image coordinates) of the texture, placed so
+    // that the image origin lands at x, y.
+    void update(float x, float y, float devicePixelRatio, const QRectF& subRect) {
 #ifdef MIXXX_DEBUG_ASSERTIONS_ENABLED
         const float epsilon = 1e-6f;
         auto roundToPixel = createFunctionRoundToPixel(devicePixelRatio);
         DEBUG_ASSERT(std::abs(x - roundToPixel(x)) < epsilon);
         DEBUG_ASSERT(std::abs(y - roundToPixel(y)) < epsilon);
 #endif
+        const float w = m_textureWidth / devicePixelRatio;
+        const float h = m_textureHeight / devicePixelRatio;
+        const QRectF rect = subRect.intersected(QRectF(0, 0, w, h));
         TexturedVertexUpdater vertexUpdater{
                 geometry().vertexDataAs<Geometry::TexturedPoint2D>()};
-        vertexUpdater.addRectangle({x, y},
-                {x + m_textureWidth / devicePixelRatio,
-                        y + m_textureHeight / devicePixelRatio},
-                {0.f, 0.f},
-                {1.f, 1.f});
+        vertexUpdater.addRectangle(
+                {x + static_cast<float>(rect.left()),
+                        y + static_cast<float>(rect.top())},
+                {x + static_cast<float>(rect.right()),
+                        y + static_cast<float>(rect.bottom())},
+                {static_cast<float>(rect.left() / w),
+                        static_cast<float>(rect.top() / h)},
+                {static_cast<float>(rect.right() / w),
+                        static_cast<float>(rect.bottom() / h)});
     }
     float textureWidth() const {
         return m_textureWidth;
@@ -67,10 +88,14 @@ class WaveformMarkNode : public rendergraph::GeometryNode {
     float textureHeight() const {
         return m_textureHeight;
     }
+    MarkPart part() const {
+        return m_part;
+    }
 
   public:
     float m_textureWidth{};
     float m_textureHeight{};
+    MarkPart m_part;
 };
 
 class WaveformMarkNodeGraphics : public WaveformMark::Graphics {
@@ -78,36 +103,72 @@ class WaveformMarkNodeGraphics : public WaveformMark::Graphics {
     WaveformMarkNodeGraphics(WaveformMark* pOwner,
             rendergraph::Context* pContext,
             const QImage& image)
-            : m_pNode(std::make_unique<WaveformMarkNode>(
-                      pOwner, pContext, image)) {
+            : m_pOwner(pOwner),
+              m_pLineNode(std::make_unique<WaveformMarkNode>(
+                      pOwner, pContext, image, MarkPart::Line)),
+              m_pLabelNode(std::make_unique<WaveformMarkNode>(
+                      pOwner, pContext, image, MarkPart::Label)) {
     }
     void updateTexture(rendergraph::Context* pContext, const QImage& image) {
-        waveformMarkNode()->updateTexture(pContext, image);
+        lineNode()->updateTexture(pContext, image);
+        labelNode()->updateTexture(pContext, image);
     }
     void update(float x, float y, float devicePixelRatio) {
-        waveformMarkNode()->update(x, y, devicePixelRatio);
+        const float w = textureWidth() / devicePixelRatio;
+        const float h = textureHeight() / devicePixelRatio;
+        // A custom pixmap is a single hand-drawn image: draw it whole on the
+        // label layer and leave the line layer empty.
+        const bool wholeImageLabel = !m_pOwner->m_pixmapPath.isEmpty();
+        const QRectF lineRect = wholeImageLabel
+                ? QRectF()
+                : QRectF(m_pOwner->m_linePosition - 2.f, 0, 4.f, h);
+        // Grown by a pixel to cover the border's antialiasing fringe.
+        const QRectF labelRect = wholeImageLabel
+                ? QRectF(0, 0, w, h)
+                : m_pOwner->m_label.area().adjusted(-1, -1, 1, 1);
+        lineNode()->update(x, y, devicePixelRatio, lineRect);
+        labelNode()->update(x, y, devicePixelRatio, labelRect);
+    }
+    bool hasLabel() const {
+        return !m_pOwner->m_label.area().isEmpty() ||
+                !m_pOwner->m_pixmapPath.isEmpty();
     }
     float textureWidth() const {
-        return waveformMarkNode()->textureWidth();
+        return lineNode()->textureWidth();
     }
     float textureHeight() const {
-        return waveformMarkNode()->textureHeight();
+        return lineNode()->textureHeight();
     }
     void attachNode(std::unique_ptr<rendergraph::BaseNode> pNode) {
-        DEBUG_ASSERT(!m_pNode);
-        m_pNode = std::move(pNode);
+        auto* pMarkNode = static_cast<WaveformMarkNode*>(pNode.get());
+        if (pMarkNode->part() == MarkPart::Line) {
+            DEBUG_ASSERT(!m_pLineNode);
+            m_pLineNode = std::move(pNode);
+        } else {
+            DEBUG_ASSERT(!m_pLabelNode);
+            m_pLabelNode = std::move(pNode);
+        }
     }
-    std::unique_ptr<rendergraph::BaseNode> detachNode() {
-        return std::move(m_pNode);
+    std::unique_ptr<rendergraph::BaseNode> detachLineNode() {
+        return std::move(m_pLineNode);
+    }
+    std::unique_ptr<rendergraph::BaseNode> detachLabelNode() {
+        return std::move(m_pLabelNode);
     }
 
   private:
-    WaveformMarkNode* waveformMarkNode() const {
-        DEBUG_ASSERT(m_pNode);
-        return static_cast<WaveformMarkNode*>(m_pNode.get());
+    WaveformMarkNode* lineNode() const {
+        DEBUG_ASSERT(m_pLineNode);
+        return static_cast<WaveformMarkNode*>(m_pLineNode.get());
+    }
+    WaveformMarkNode* labelNode() const {
+        DEBUG_ASSERT(m_pLabelNode);
+        return static_cast<WaveformMarkNode*>(m_pLabelNode.get());
     }
 
-    std::unique_ptr<rendergraph::BaseNode> m_pNode;
+    WaveformMark* m_pOwner{};
+    std::unique_ptr<rendergraph::BaseNode> m_pLineNode;
+    std::unique_ptr<rendergraph::BaseNode> m_pLabelNode;
 };
 
 constexpr float kPlayPosWidth{11.f};
@@ -156,6 +217,12 @@ allshader::WaveformRenderMark::WaveformRenderMark(
     {
         auto pNode = std::make_unique<Node>();
         m_pRangeNodesParent = pNode.get();
+        appendChildNode(std::move(pNode));
+    }
+
+    {
+        auto pNode = std::make_unique<Node>();
+        m_pMarkLinesParent = pNode.get();
         appendChildNode(std::move(pNode));
     }
 
@@ -273,14 +340,16 @@ void allshader::WaveformRenderMark::update() {
     // from m_pMarkNodesParent and store each with their mark
     // (transferring ownership). Later in this function we move the
     // visible nodes back to m_pMarkNodesParent children.
-    while (auto* pChild = m_pMarkNodesParent->firstChild()) {
-        auto pNode = m_pMarkNodesParent->detachChildNode(pChild);
-        WaveformMarkNode* pWaveformMarkNode = static_cast<WaveformMarkNode*>(pNode.get());
-        // Determine its WaveformMark
-        auto* pMark = pWaveformMarkNode->m_pOwner;
-        auto* pGraphics = static_cast<WaveformMarkNodeGraphics*>(pMark->m_pGraphics.get());
-        // Store the node with the WaveformMark
-        pGraphics->attachNode(std::move(pNode));
+    for (auto* pParent : {m_pMarkLinesParent, m_pMarkNodesParent}) {
+        while (auto* pChild = pParent->firstChild()) {
+            auto pNode = pParent->detachChildNode(pChild);
+            WaveformMarkNode* pWaveformMarkNode = static_cast<WaveformMarkNode*>(pNode.get());
+            // Determine its WaveformMark
+            auto* pMark = pWaveformMarkNode->m_pOwner;
+            auto* pGraphics = static_cast<WaveformMarkNodeGraphics*>(pMark->m_pGraphics.get());
+            // Store the node with the WaveformMark
+            pGraphics->attachNode(std::move(pNode));
+        }
     }
 
     auto positionType = m_isSlipRenderer ? ::WaveformRendererAbstract::Slip
@@ -350,8 +419,13 @@ void allshader::WaveformRenderMark::update() {
                             : 0,
                     devicePixelRatio);
 
-            // transfer back to m_pMarkNodesParent children, for rendering
-            m_pMarkNodesParent->appendChildNode(pMarkNodeGraphics->detachNode());
+            // transfer back to the parents' children, for rendering: lines
+            // under one parent, label boxes under a later sibling, so no
+            // mark's line can cross another mark's box.
+            m_pMarkLinesParent->appendChildNode(pMarkNodeGraphics->detachLineNode());
+            if (pMarkNodeGraphics->hasLabel()) {
+                m_pMarkNodesParent->appendChildNode(pMarkNodeGraphics->detachLabelNode());
+            }
 
             visible = true;
         }
