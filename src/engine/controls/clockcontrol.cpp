@@ -13,11 +13,15 @@ constexpr double kStandStillTolerance =
         0.005; // (seconds) Minimum change, to he last evaluated position
 constexpr double kSignificiantRateThreshold =
         0.1; // If rate is significiant, update indicator also inside standstill tolerance
+// beat_index when there is no beat at or before the playhead: far below any
+// index a real pre-anchor beat could produce.
+constexpr double kNoBeatIndex = -1.0e9;
 } // namespace
 
 ClockControl::ClockControl(const QString& group, UserSettingsPointer pConfig)
         : EngineControl(group, pConfig),
           m_pCOBeatActive(std::make_unique<ControlObject>(ConfigKey(group, "beat_active"))),
+          m_pCOBeatIndex(std::make_unique<ControlObject>(ConfigKey(group, "beat_index"))),
           m_pLoopEnabled(std::make_unique<ControlProxy>(group, "loop_enabled", this)),
           m_pLoopStartPosition(std::make_unique<ControlProxy>(group, "loop_start_position", this)),
           m_pLoopEndPosition(std::make_unique<ControlProxy>(group, "loop_end_position", this)),
@@ -29,6 +33,8 @@ ClockControl::ClockControl(const QString& group, UserSettingsPointer pConfig)
           m_internalState(StateMachine::outsideIndicationArea) {
     m_pCOBeatActive->setReadOnly();
     m_pCOBeatActive->forceSet(0.0);
+    m_pCOBeatIndex->setReadOnly();
+    m_pCOBeatIndex->forceSet(kNoBeatIndex);
 }
 
 ClockControl::~ClockControl() = default;
@@ -46,6 +52,11 @@ void ClockControl::trackBeatsUpdated(mixxx::BeatsPointer pBeats) {
     // Clear on-beat control
     m_pCOBeatActive->forceSet(0.0);
     m_pBeats = pBeats;
+    // Invalidate the beat window so the next update recomputes it (and the
+    // beat index) against the new grid.
+    m_prevBeatPosition = mixxx::audio::kInvalidFramePos;
+    m_nextBeatPosition = mixxx::audio::kInvalidFramePos;
+    m_pCOBeatIndex->forceSet(kNoBeatIndex);
 }
 
 void ClockControl::updateIndicators(const double dRate,
@@ -84,10 +95,22 @@ void ClockControl::updateIndicators(const double dRate,
                     &m_prevBeatPosition,
                     &m_nextBeatPosition,
                     false); // Precise compare without tolerance needed
+            // Beats from the grid anchor to the playhead; recomputed only
+            // when the beat window changes, so it emits once per beat.
+            double beatIndex = kNoBeatIndex;
+            if (m_prevBeatPosition.isValid()) {
+                beatIndex = static_cast<double>(
+                        pBeats->iteratorFrom(m_prevBeatPosition) -
+                        pBeats->iteratorFrom(pBeats->anchorPosition()));
+            }
+            m_pCOBeatIndex->forceSet(beatIndex);
         }
     } else {
         m_prevBeatPosition = mixxx::audio::kInvalidFramePos;
         m_nextBeatPosition = mixxx::audio::kInvalidFramePos;
+        if (m_pCOBeatIndex->get() != kNoBeatIndex) {
+            m_pCOBeatIndex->forceSet(kNoBeatIndex);
+        }
     }
 
     // Loops need special handling

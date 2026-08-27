@@ -28,6 +28,7 @@ class ClockControl: public EngineControl {
 
   private:
     std::unique_ptr<ControlObject> m_pCOBeatActive;
+    std::unique_ptr<ControlObject> m_pCOBeatIndex;
 
     // ControlObjects that come from LoopingControl
     std::unique_ptr<ControlProxy> m_pLoopEnabled;
