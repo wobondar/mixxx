@@ -37,6 +37,18 @@ class WaveformRendererSignalBase : public QObject, public WaveformRendererAbstra
     void setHighVisualGain(double gain) {
         m_highVisualGain = static_cast<CSAMPLE_GAIN>(gain);
     }
+    void setBandContrast(double contrast) {
+        m_bandContrast = static_cast<float>(contrast);
+    }
+    void setColorMode(int mode) {
+        m_proportionalColor = mode == 1;
+    }
+    void setColorGain(double gain) {
+        m_colorGain = static_cast<float>(gain);
+    }
+    void setHeightCurve(double curve) {
+        m_heightCurve = static_cast<float>(curve);
+    }
 
   protected:
     void getGains(float* pAllGain,
@@ -60,6 +72,10 @@ class WaveformRendererSignalBase : public QObject, public WaveformRendererAbstra
     CSAMPLE_GAIN m_lowVisualGain;
     CSAMPLE_GAIN m_midVisualGain;
     CSAMPLE_GAIN m_highVisualGain;
+    float m_bandContrast;
+    bool m_proportionalColor;
+    float m_colorGain;
+    float m_heightCurve;
 
     float m_axesColor_r, m_axesColor_g, m_axesColor_b, m_axesColor_a;
     float m_signalColor_r, m_signalColor_g, m_signalColor_b;

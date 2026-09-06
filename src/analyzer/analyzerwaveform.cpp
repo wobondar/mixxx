@@ -1,5 +1,6 @@
 #include "analyzer/analyzerwaveform.h"
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -19,15 +20,29 @@ constexpr double kLowMidFreqHz = 600.0;
 
 constexpr double kMidHighFreqHz = 4000.0;
 
+const QString kWaveformGroup = QStringLiteral("[Waveform]");
+const ConfigKey kEnvelopeKey(kWaveformGroup, QStringLiteral("Envelope"));
+const ConfigKey kLowMidCrossoverKey(kWaveformGroup, QStringLiteral("LowMidCrossoverHz"));
+const ConfigKey kMidHighCrossoverKey(kWaveformGroup, QStringLiteral("MidHighCrossoverHz"));
+
+WaveformEnvelope envelopeFromConfig(const UserSettingsPointer& pConfig) {
+    const int value = pConfig->getValue<int>(
+            kEnvelopeKey, static_cast<int>(WaveformEnvelope::Peak));
+    return value == static_cast<int>(WaveformEnvelope::Rms)
+            ? WaveformEnvelope::Rms
+            : WaveformEnvelope::Peak;
+}
+
 } // namespace
 
 AnalyzerWaveform::AnalyzerWaveform(
         UserSettingsPointer pConfig,
         const QSqlDatabase& dbConnection)
-        : m_analysisDao(pConfig),
+        : m_pConfig(pConfig),
+          m_analysisDao(pConfig),
           m_waveformData(nullptr),
           m_waveformSummaryData(nullptr),
-          m_stride(0, 0, 0),
+          m_stride(0, 0, 0, WaveformEnvelope::Peak),
           m_currentStride(0),
           m_currentSummaryStride(0) {
     m_analysisDao.initialize(dbConnection);
@@ -82,7 +97,8 @@ bool AnalyzerWaveform::initialize(const AnalyzerTrack& track,
 
     m_stride = WaveformStride(m_waveform->getAudioVisualRatio(),
             m_waveformSummary->getAudioVisualRatio(),
-            stemCount);
+            stemCount,
+            envelopeFromConfig(m_pConfig));
 
     m_currentStride = 0;
     m_currentSummaryStride = 0;
@@ -173,13 +189,19 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
 }
 
 void AnalyzerWaveform::createFilters(mixxx::audio::SampleRate sampleRate) {
-    // m_filter[Low] = new EngineFilterButterworth8Low(sampleRate, kLowMidFreqHz);
-    // m_filter[Mid] = new EngineFilterButterworth8Band(sampleRate, kLowMidFreqHz, kMidHighFreqHz);
-    // m_filter[High] = new EngineFilterButterworth8High(sampleRate, kMidHighFreqHz);
+    // Crossovers are clamped so the bands stay ordered and inside the
+    // audible range whatever the config says.
+    const double nyquist = sampleRate / 2.0;
+    double lowMidHz = std::clamp(m_pConfig->getValue<double>(kLowMidCrossoverKey, kLowMidFreqHz),
+            20.0,
+            nyquist - 40.0);
+    double midHighHz = std::clamp(m_pConfig->getValue<double>(kMidHighCrossoverKey, kMidHighFreqHz),
+            lowMidHz + 20.0,
+            nyquist - 20.0);
     m_filters = {
-            std::make_unique<EngineFilterBessel4Low>(sampleRate, kLowMidFreqHz),
-            std::make_unique<EngineFilterBessel4Band>(sampleRate, kLowMidFreqHz, kMidHighFreqHz),
-            std::make_unique<EngineFilterBessel4High>(sampleRate, kMidHighFreqHz)};
+            std::make_unique<EngineFilterBessel4Low>(sampleRate, lowMidHz),
+            std::make_unique<EngineFilterBessel4Band>(sampleRate, lowMidHz, midHighHz),
+            std::make_unique<EngineFilterBessel4High>(sampleRate, midHighHz)};
 
     // settle filters for silence in preroll to avoids ramping (Issue #7776)
     m_filters.low->assumeSettled();
@@ -234,43 +256,32 @@ bool AnalyzerWaveform::processSamples(const CSAMPLE* pIn, SINT count) {
     m_waveformSummary->setSaveState(Waveform::SaveState::NotSaved);
 
     for (SINT i = 0; i < count; i += 2) {
-        // Take max value, not average of data
         CSAMPLE cover[2] = {fabs(pWaveformInput[i]), fabs(pWaveformInput[i + 1])};
         CSAMPLE clow[2] = {fabs(m_buffers.low[i]), fabs(m_buffers.low[i + 1])};
         CSAMPLE cmid[2] = {fabs(m_buffers.mid[i]), fabs(m_buffers.mid[i + 1])};
         CSAMPLE chigh[2] = {fabs(m_buffers.high[i]), fabs(m_buffers.high[i + 1])};
 
-        // This is for if you want to experiment with averaging instead of
-        // maxing.
-        // m_stride.m_overallData[Right] += buffer[i]*buffer[i];
-        // m_stride.m_overallData[Left] += buffer[i + 1]*buffer[i + 1];
-        // m_stride.m_filteredData[Right][Low] += m_buffers.low[i]*m_buffers.low[i];
-        // m_stride.m_filteredData[Left][Low] += m_buffers.low[i + 1]*m_buffers.low[i + 1];
-        // m_stride.m_filteredData[Right][Mid] += m_buffers.mid[i]*m_buffers.mid[i];
-        // m_stride.m_filteredData[Left][Mid] += m_buffers.mid[i + 1]*m_buffers.mid[i + 1];
-        // m_stride.m_filteredData[Right][High] += m_buffers.high[i]*m_buffers.high[i];
-        // m_stride.m_filteredData[Left][High] += m_buffers.high[i + 1]*m_buffers.high[i + 1];
-
-        // Record the max across this stride.
-        storeIfGreater(&m_stride.m_overallData[Left], cover[Left]);
-        storeIfGreater(&m_stride.m_overallData[Right], cover[Right]);
-        storeIfGreater(&m_stride.m_filteredData[Left][Low], clow[Left]);
-        storeIfGreater(&m_stride.m_filteredData[Right][Low], clow[Right]);
-        storeIfGreater(&m_stride.m_filteredData[Left][Mid], cmid[Left]);
-        storeIfGreater(&m_stride.m_filteredData[Right][Mid], cmid[Right]);
-        storeIfGreater(&m_stride.m_filteredData[Left][High], chigh[Left]);
-        storeIfGreater(&m_stride.m_filteredData[Right][High], chigh[Right]);
+        // Fold this frame into the stride, peak or squared sum per envelope.
+        m_stride.accumulate(&m_stride.m_overallData[Left], cover[Left]);
+        m_stride.accumulate(&m_stride.m_overallData[Right], cover[Right]);
+        m_stride.accumulate(&m_stride.m_filteredData[Left][Low], clow[Left]);
+        m_stride.accumulate(&m_stride.m_filteredData[Right][Low], clow[Right]);
+        m_stride.accumulate(&m_stride.m_filteredData[Left][Mid], cmid[Left]);
+        m_stride.accumulate(&m_stride.m_filteredData[Right][Mid], cmid[Right]);
+        m_stride.accumulate(&m_stride.m_filteredData[Left][High], chigh[Left]);
+        m_stride.accumulate(&m_stride.m_filteredData[Right][High], chigh[Right]);
 
         for (int s = 0; s < stemCount; s++) {
             CSAMPLE cstem[2] = {
                     fabs(pIn[i * stemCount + s * mixxx::kAnalysisChannels]),
                     fabs(pIn[i * stemCount + s * mixxx::kAnalysisChannels +
                             1])};
-            storeIfGreater(&m_stride.m_stemData[Left][s], cstem[Left]);
-            storeIfGreater(&m_stride.m_stemData[Right][s], cstem[Right]);
+            m_stride.accumulate(&m_stride.m_stemData[Left][s], cstem[Left]);
+            m_stride.accumulate(&m_stride.m_stemData[Right][s], cstem[Right]);
         }
 
         m_stride.m_position++;
+        m_stride.m_strideSamples++;
 
         if (fmod(m_stride.m_position, m_stride.m_length) < 1) {
             VERIFY_OR_DEBUG_ASSERT(m_currentStride + ChannelCount <= m_waveform->getDataSize()) {
@@ -358,8 +369,3 @@ void AnalyzerWaveform::storeResults(TrackPointer pTrack) {
                     << m_timer.elapsed().debugSecondsWithUnit();
 }
 
-void AnalyzerWaveform::storeIfGreater(float* pDest, float source) {
-    if (*pDest < source) {
-        *pDest = source;
-    }
-}

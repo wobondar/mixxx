@@ -233,6 +233,32 @@ class WaveformWidgetFactory : public QObject,
     double getVisualGain(BandIndex index) const;
     static double getVisualGainDefault(BandIndex index);
 
+    // Exponent applied to the band amplitudes before the RGB colour mix.
+    // 1 blends linearly; higher values let the strongest band dominate.
+    void setBandContrast(double contrast);
+    double getBandContrast() const { return m_bandContrast; }
+    static double getBandContrastDefault();
+
+    // How RGB waveform columns turn band levels into a colour.
+    // Relative divides by the loudest band, so the hue follows whichever
+    // band wins. Proportional uses each band's share of the column's total
+    // level, so the hue follows the balance and does not depend on loudness.
+    enum class ColorMode {
+        Relative = 0,
+        Proportional = 1,
+    };
+    void setColorMode(ColorMode mode);
+    ColorMode getColorMode() const { return m_colorMode; }
+    void setColorGain(double gain);
+    double getColorGain() const { return m_colorGain; }
+    static double getColorGainDefault();
+
+    // Exponent on the column level before it becomes a height. 1 is
+    // linear; lower values lift quiet passages.
+    void setHeightCurve(double curve);
+    double getHeightCurve() const { return m_heightCurve; }
+    static double getHeightCurveDefault();
+
     void setOverviewNormalized(bool normalize);
     bool isOverviewNormalized() const {
         return m_overviewNormalized;
@@ -265,6 +291,10 @@ class WaveformWidgetFactory : public QObject,
 
     void overviewScalingChanged();
     void visualGainChanged(double allChannelGain, double lowGain, double midGain, double highGain);
+    void bandContrastChanged(double contrast);
+    void colorModeChanged(int mode);
+    void colorGainChanged(double gain);
+    void heightCurveChanged(double curve);
 
     void untilMarkShowBeatsChanged(bool value);
     void untilMarkShowTimeChanged(bool value);
@@ -330,6 +360,10 @@ class WaveformWidgetFactory : public QObject,
     double m_defaultZoom;
     bool m_zoomSync;
     double m_visualGain[BandCount];
+    double m_bandContrast;
+    ColorMode m_colorMode;
+    double m_colorGain;
+    double m_heightCurve;
     bool m_overviewNormalized;
 
     bool m_untilMarkShowBeats;

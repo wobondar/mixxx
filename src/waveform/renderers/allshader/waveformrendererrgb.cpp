@@ -1,5 +1,8 @@
 #include "waveform/renderers/allshader/waveformrendererrgb.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "rendergraph/material/rgbmaterial.h"
 #include "rendergraph/vertexupdaters/rgbvertexupdater.h"
 #include "track/track.h"
@@ -163,11 +166,18 @@ bool WaveformRendererRGB::preprocessInner() {
 
         const float fpos = static_cast<float>(pos) * invDevicePixelRatio;
 
-        // Find the max values for low, mid, high and all in the waveform data.
-        // - Max of left and right
+        // Per band: max over the frames under this pixel drives the height,
+        // mean over the same frames drives the colour. Using the max for
+        // colour too would mix band peaks from different frames into a hue
+        // the audio never had.
         uchar u8maxLow[2]{};
         uchar u8maxMid[2]{};
         uchar u8maxHigh[2]{};
+        float sumLow[2]{};
+        float sumMid[2]{};
+        float sumHigh[2]{};
+        float sumAll[2]{};
+        int frameCount[2]{};
         // - Per channel
         uchar u8maxAllChn[2]{};
         for (int chn = 0; chn < 2; chn++) {
@@ -183,9 +193,19 @@ bool WaveformRendererRGB::preprocessInner() {
                 u8maxHigh[signalChn] = math_max(u8maxHigh[signalChn], waveformData.filtered.high);
                 u8maxAllChn[signalChn] = math_max(
                         u8maxAllChn[signalChn], waveformData.filtered.all);
+                sumLow[signalChn] += waveformData.filtered.low;
+                sumMid[signalChn] += waveformData.filtered.mid;
+                sumHigh[signalChn] += waveformData.filtered.high;
+                sumAll[signalChn] += waveformData.filtered.all;
+                frameCount[signalChn]++;
             }
         }
         float maxAllChn[2]{static_cast<float>(u8maxAllChn[0]), static_cast<float>(u8maxAllChn[1])};
+        if (m_heightCurve != 1.0f) {
+            for (float& v : maxAllChn) {
+                v = std::pow(v / m_maxValue, m_heightCurve) * m_maxValue;
+            }
+        }
 
         // In case we don't render individual color per channel, all the
         // signal information is in the first field of each array. If
@@ -207,26 +227,66 @@ bool WaveformRendererRGB::preprocessInner() {
             float allUnscaled = maxLowU + maxMidU + maxHighU;
             float eqGain = 1.0f;
             if (allUnscaled > 0.0f) {
-                eqGain = (maxLow + maxMid + maxHigh) / allUnscaled;
+                if (m_proportionalColor) {
+                    // The band visual gains are colour weights here, so the
+                    // height only follows the EQ knobs and kills.
+                    constexpr float kMinGain = 0.01f;
+                    eqGain = (maxLowU * lowGain / std::max(m_lowVisualGain, kMinGain) +
+                                     maxMidU * midGain / std::max(m_midVisualGain, kMinGain) +
+                                     maxHighU * highGain / std::max(m_highVisualGain, kMinGain)) /
+                            allUnscaled;
+                } else {
+                    eqGain = (maxLow + maxMid + maxHigh) / allUnscaled;
+                }
             }
 
-            // Use the gained maxLow, maxMid and maxHigh values to calculate the color components
-            float red = maxLow * low_r + maxMid * mid_r + maxHigh * high_r;
-            float green = maxLow * low_g + maxMid * mid_g + maxHigh * high_g;
-            float blue = maxLow * low_b + maxMid * mid_b + maxHigh * high_b;
+            // Colour weights: gained band means as a 0..1 fraction of full
+            // scale, raised to the band contrast.
+            const float invCount = frameCount[chn] > 0 ? 1.0f / frameCount[chn] : 0.0f;
+            float wLow = sumLow[chn] * invCount * lowGain / m_maxValue;
+            float wMid = sumMid[chn] * invCount * midGain / m_maxValue;
+            float wHigh = sumHigh[chn] * invCount * highGain / m_maxValue;
+            if (m_proportionalColor) {
+                // Each band as a share of the column's total level, so the
+                // hue follows the balance and not the loudness.
+                const float meanAll = sumAll[chn] * invCount / m_maxValue;
+                const float invAll = meanAll > 0.0f ? 1.0f / meanAll : 0.0f;
+                wLow *= invAll;
+                wMid *= invAll;
+                wHigh *= invAll;
+            }
+            if (m_bandContrast != 1.0f) {
+                wLow = std::pow(wLow, m_bandContrast);
+                wMid = std::pow(wMid, m_bandContrast);
+                wHigh = std::pow(wHigh, m_bandContrast);
+            }
+            if (m_proportionalColor) {
+                wLow = std::min(1.0f, wLow * m_colorGain);
+                wMid = std::min(1.0f, wMid * m_colorGain);
+                wHigh = std::min(1.0f, wHigh * m_colorGain);
+            }
+            float red = wLow * low_r + wMid * mid_r + wHigh * high_r;
+            float green = wLow * low_g + wMid * mid_g + wHigh * high_g;
+            float blue = wLow * low_b + wMid * mid_b + wHigh * high_b;
 
-            // Normalize the color components using the maximum of the three
-            const float maxComponent = math_max3(red, green, blue);
-            if (maxComponent == 0.f) {
-                // Avoid division by 0
-                red = 0.f;
-                green = 0.f;
-                blue = 0.f;
+            if (m_proportionalColor) {
+                red = std::min(1.0f, red);
+                green = std::min(1.0f, green);
+                blue = std::min(1.0f, blue);
             } else {
-                const float normFactor = 1.f / maxComponent;
-                red *= normFactor;
-                green *= normFactor;
-                blue *= normFactor;
+                // Normalize the color components using the maximum of the three
+                const float maxComponent = math_max3(red, green, blue);
+                if (maxComponent == 0.f) {
+                    // Avoid division by 0
+                    red = 0.f;
+                    green = 0.f;
+                    blue = 0.f;
+                } else {
+                    const float normFactor = 1.f / maxComponent;
+                    red *= normFactor;
+                    green *= normFactor;
+                    blue *= normFactor;
+                }
             }
 
             // Lines are thin rectangles

@@ -18,14 +18,25 @@ class QImage;
 class EngineFilterIIRBase;
 class QSqlDatabase;
 
+// How each visual stride condenses its audio samples into one byte per band.
+enum class WaveformEnvelope {
+    Peak = 0, // loudest absolute sample in the stride
+    Rms = 1,  // root mean square of the stride
+};
+
 struct WaveformStride {
-    WaveformStride(double samples, double averageSamples, int stemCount)
+    WaveformStride(double samples,
+            double averageSamples,
+            int stemCount,
+            WaveformEnvelope envelope)
             : m_position(0),
               m_stemCount(stemCount),
               m_length(samples),
               m_averageLength(averageSamples),
               m_averagePosition(0),
               m_averageDivisor(0),
+              m_strideSamples(0),
+              m_envelope(envelope),
               m_postScaleConversion(static_cast<float>(
                       std::numeric_limits<unsigned char>::max())) {
         reset();
@@ -34,6 +45,7 @@ struct WaveformStride {
     inline void reset() {
         m_position = 0;
         m_averageDivisor = 0;
+        m_strideSamples = 0;
         for (int i = 0; i < ChannelCount; ++i) {
             m_overallData[i] = 0.0f;
             m_averageOverallData[i] = 0.0f;
@@ -43,29 +55,60 @@ struct WaveformStride {
         }
     }
 
+    // Folds one absolute sample into an accumulator: keeps the max for
+    // Peak, sums squares for Rms.
+    inline void accumulate(float* pDest, float source) const {
+        if (m_envelope == WaveformEnvelope::Rms) {
+            *pDest += source * source;
+        } else if (source > *pDest) {
+            *pDest = source;
+        }
+    }
+
+    // Turns an accumulator into the stride's amplitude. Rms is scaled so a
+    // full-scale sine lands on the same byte as its peak would.
+    inline float finalize(float accumulated) const {
+        if (m_envelope == WaveformEnvelope::Rms) {
+            if (m_strideSamples <= 0) {
+                return 0.0f;
+            }
+            constexpr float kSineRmsToPeak = 1.41421356f;
+            return std::sqrt(accumulated / m_strideSamples) * kSineRmsToPeak;
+        }
+        return accumulated;
+    }
+
+    inline unsigned char toByte(float amplitude) const {
+        return static_cast<unsigned char>(std::min(255.0,
+                m_postScaleConversion * amplitude + 0.5));
+    }
+
     inline void store(WaveformData* data) {
         for (int i = 0; i < ChannelCount; ++i) {
             WaveformData& datum = *(data + i);
-            datum.filtered.all = static_cast<unsigned char>(std::min(255.0,
-                    m_postScaleConversion * m_overallData[i] + 0.5));
-            datum.filtered.low = static_cast<unsigned char>(std::min(255.0,
-                    m_postScaleConversion * m_filteredData[i][Low] + 0.5));
-            datum.filtered.mid = static_cast<unsigned char>(std::min(255.0,
-                    m_postScaleConversion * m_filteredData[i][Mid] + 0.5));
-            datum.filtered.high = static_cast<unsigned char>(std::min(255.0,
-                    m_postScaleConversion * m_filteredData[i][High] + 0.5));
+            const float all = finalize(m_overallData[i]);
+            const float low = finalize(m_filteredData[i][Low]);
+            const float mid = finalize(m_filteredData[i][Mid]);
+            const float high = finalize(m_filteredData[i][High]);
+            datum.filtered.all = toByte(all);
+            datum.filtered.low = toByte(low);
+            datum.filtered.mid = toByte(mid);
+            datum.filtered.high = toByte(high);
             for (int stemIdx = 0; stemIdx < m_stemCount; stemIdx++) {
-                datum.stems[stemIdx] = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_stemData[i][stemIdx] + 0.5));
+                datum.stems[stemIdx] = toByte(finalize(m_stemData[i][stemIdx]));
             }
+            // The summary averages finalized stride amplitudes.
+            m_averageOverallData[i] += all;
+            m_averageFilteredData[i][Low] += low;
+            m_averageFilteredData[i][Mid] += mid;
+            m_averageFilteredData[i][High] += high;
         }
         m_averageDivisor++;
+        m_strideSamples = 0;
         // Reset the stride counters
         for (int i = 0; i < ChannelCount; ++i) {
-            m_averageOverallData[i] += m_overallData[i];
             m_overallData[i] = 0.0f;
             for (int f = 0; f < BandCount; ++f) {
-                m_averageFilteredData[i][f] += m_filteredData[i][f];
                 m_filteredData[i][f] = 0.0f;
             }
             for (int stemIdx = 0; stemIdx < m_stemCount; ++stemIdx) {
@@ -78,33 +121,19 @@ struct WaveformStride {
         if (m_averageDivisor) {
             for (int i = 0; i < ChannelCount; ++i) {
                 WaveformData& datum = *(data + i);
-                datum.filtered.all = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_averageOverallData[i] / m_averageDivisor + 0.5));
-                datum.filtered.low = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_averageFilteredData[i][Low] /
-                                        m_averageDivisor +
-                                0.5));
-                datum.filtered.mid = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_averageFilteredData[i][Mid] /
-                                        m_averageDivisor +
-                                0.5));
-                datum.filtered.high = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_averageFilteredData[i][High] /
-                                        m_averageDivisor +
-                                0.5));
+                datum.filtered.all = toByte(m_averageOverallData[i] / m_averageDivisor);
+                datum.filtered.low = toByte(m_averageFilteredData[i][Low] / m_averageDivisor);
+                datum.filtered.mid = toByte(m_averageFilteredData[i][Mid] / m_averageDivisor);
+                datum.filtered.high = toByte(m_averageFilteredData[i][High] / m_averageDivisor);
             }
         } else {
             // This is the case if The Overview Waveform has more samples than the detailed waveform
             for (int i = 0; i < ChannelCount; ++i) {
                 WaveformData& datum = *(data + i);
-                datum.filtered.all = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_overallData[i] + 0.5));
-                datum.filtered.low = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_filteredData[i][Low] + 0.5));
-                datum.filtered.mid = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_filteredData[i][Mid] + 0.5));
-                datum.filtered.high = static_cast<unsigned char>(std::min(255.0,
-                        m_postScaleConversion * m_filteredData[i][High] + 0.5));
+                datum.filtered.all = toByte(finalize(m_overallData[i]));
+                datum.filtered.low = toByte(finalize(m_filteredData[i][Low]));
+                datum.filtered.mid = toByte(finalize(m_filteredData[i][Mid]));
+                datum.filtered.high = toByte(finalize(m_filteredData[i][High]));
             }
         }
 
@@ -123,6 +152,8 @@ struct WaveformStride {
     double m_averageLength;
     int m_averagePosition;
     int m_averageDivisor;
+    int m_strideSamples;
+    WaveformEnvelope m_envelope;
 
     float m_overallData[ChannelCount];
     float m_filteredData[ChannelCount][BandCount];
@@ -157,8 +188,8 @@ class AnalyzerWaveform : public Analyzer {
 
     void createFilters(mixxx::audio::SampleRate sampleRate);
     void destroyFilters();
-    void storeIfGreater(float* pDest, float source);
 
+    UserSettingsPointer m_pConfig;
     mutable AnalysisDao m_analysisDao;
 
     WaveformPointer m_waveform;

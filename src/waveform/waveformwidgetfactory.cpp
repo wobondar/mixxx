@@ -88,6 +88,14 @@ ConfigKey visualGainKey(int index) {
     return ConfigKey(kWaveformGroup, QStringLiteral("VisualGain_") + QString::number(index));
 }
 
+constexpr double kBandContrastDefault = 1.0;
+const ConfigKey kBandContrastKey = ConfigKey(kWaveformGroup, QStringLiteral("BandContrast"));
+constexpr double kColorGainDefault = 2.6;
+constexpr double kHeightCurveDefault = 1.0;
+const ConfigKey kHeightCurveKey = ConfigKey(kWaveformGroup, QStringLiteral("HeightCurve"));
+const ConfigKey kColorModeKey = ConfigKey(kWaveformGroup, QStringLiteral("ColorMode"));
+const ConfigKey kColorGainKey = ConfigKey(kWaveformGroup, QStringLiteral("ColorGain"));
+
 }  // anonymous namespace
 
 ///////////////////////////////////////////
@@ -151,6 +159,10 @@ WaveformWidgetFactory::WaveformWidgetFactory()
     m_visualGain[Low] = kVisualGainDefault[Low];
     m_visualGain[Mid] = kVisualGainDefault[Mid];
     m_visualGain[High] = kVisualGainDefault[High];
+    m_bandContrast = kBandContrastDefault;
+    m_colorMode = ColorMode::Relative;
+    m_colorGain = kColorGainDefault;
+    m_heightCurve = kHeightCurveDefault;
 
 #ifdef MIXXX_USE_QOPENGL
     WGLWidget* widget = SharedGLContext::getWidget();
@@ -420,6 +432,16 @@ bool WaveformWidgetFactory::setConfig(UserSettingsPointer config) {
     for (int i = 0; i < BandCount; i++) {
         m_visualGain[i] = m_config->getValue(visualGainKey(i), kVisualGainDefault[i]);
     }
+    m_bandContrast = m_config->getValue(kBandContrastKey, kBandContrastDefault);
+    emit bandContrastChanged(m_bandContrast);
+    m_colorMode = m_config->getValue<int>(kColorModeKey, 0) == 1
+            ? ColorMode::Proportional
+            : ColorMode::Relative;
+    emit colorModeChanged(static_cast<int>(m_colorMode));
+    m_colorGain = m_config->getValue(kColorGainKey, kColorGainDefault);
+    emit colorGainChanged(m_colorGain);
+    m_heightCurve = m_config->getValue(kHeightCurveKey, kHeightCurveDefault);
+    emit heightCurveChanged(m_heightCurve);
     m_overviewNormalized = m_config->getValue(
             ConfigKey(kWaveformGroup, QStringLiteral("OverviewNormalized")),
             kOverviewNormalizedDefault);
@@ -775,6 +797,53 @@ double WaveformWidgetFactory::getVisualGain(BandIndex index) const {
 // static
 double WaveformWidgetFactory::getVisualGainDefault(BandIndex index) {
     return kVisualGainDefault[index];
+}
+
+void WaveformWidgetFactory::setBandContrast(double contrast) {
+    m_bandContrast = contrast;
+    if (m_config) {
+        m_config->setValue(kBandContrastKey, m_bandContrast);
+    }
+    emit bandContrastChanged(m_bandContrast);
+}
+
+// static
+double WaveformWidgetFactory::getBandContrastDefault() {
+    return kBandContrastDefault;
+}
+
+void WaveformWidgetFactory::setColorMode(ColorMode mode) {
+    m_colorMode = mode;
+    if (m_config) {
+        m_config->setValue(kColorModeKey, static_cast<int>(m_colorMode));
+    }
+    emit colorModeChanged(static_cast<int>(m_colorMode));
+}
+
+void WaveformWidgetFactory::setColorGain(double gain) {
+    m_colorGain = gain;
+    if (m_config) {
+        m_config->setValue(kColorGainKey, m_colorGain);
+    }
+    emit colorGainChanged(m_colorGain);
+}
+
+// static
+double WaveformWidgetFactory::getColorGainDefault() {
+    return kColorGainDefault;
+}
+
+void WaveformWidgetFactory::setHeightCurve(double curve) {
+    m_heightCurve = curve;
+    if (m_config) {
+        m_config->setValue(kHeightCurveKey, m_heightCurve);
+    }
+    emit heightCurveChanged(m_heightCurve);
+}
+
+// static
+double WaveformWidgetFactory::getHeightCurveDefault() {
+    return kHeightCurveDefault;
 }
 
 void WaveformWidgetFactory::setOverviewNormalized(bool normalize) {

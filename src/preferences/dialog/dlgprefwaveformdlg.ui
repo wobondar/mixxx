@@ -418,7 +418,7 @@ Select from different types of displays for the waveform, which differ primarily
           <number>1</number>
          </property>
          <property name="minimum">
-          <double>0.500000000000000</double>
+          <double>0.100000000000000</double>
          </property>
          <property name="maximum">
           <double>5.000000000000000</double>
@@ -437,7 +437,7 @@ Select from different types of displays for the waveform, which differ primarily
           <number>1</number>
          </property>
          <property name="minimum">
-          <double>0.500000000000000</double>
+          <double>0.100000000000000</double>
          </property>
          <property name="maximum">
           <double>5.000000000000000</double>
@@ -456,13 +456,130 @@ Select from different types of displays for the waveform, which differ primarily
           <number>1</number>
          </property>
          <property name="minimum">
-          <double>0.500000000000000</double>
+          <double>0.100000000000000</double>
          </property>
          <property name="maximum">
           <double>5.000000000000000</double>
          </property>
          <property name="singleStep">
           <double>0.100000000000000</double>
+         </property>
+        </widget>
+       </item>
+
+       <item row="2" column="0">
+        <widget class="QLabel" name="bandContrastLabel">
+         <property name="text">
+          <string>Band contrast</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>bandContrast</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QDoubleSpinBox" name="bandContrast">
+         <property name="toolTip">
+          <string>How strongly the loudest frequency band decides the colour of an RGB waveform column. 1.0 blends the bands in proportion; higher values let the dominant band take over.</string>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="minimum">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>4.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="colorModeLabel">
+         <property name="text">
+          <string>Colour mode</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>colorModeComboBox</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QComboBox" name="colorModeComboBox">
+         <property name="toolTip">
+          <string>Relative divides each RGB column by its loudest band, so the hue follows whichever band wins. Proportional colours by each band's share of the column's total level, so the hue follows the balance and does not depend on loudness.</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QLabel" name="colorGainLabel">
+         <property name="text">
+          <string>Colour gain</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>colorGain</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="2">
+        <widget class="QDoubleSpinBox" name="colorGain">
+         <property name="toolTip">
+          <string>Proportional colour mode only: how large a band's share must be to reach full brightness. Higher values saturate sooner.</string>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="minimum">
+          <double>0.500000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>10.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3">
+        <widget class="QLabel" name="heightCurveLabel">
+         <property name="text">
+          <string>Height curve</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>heightCurve</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="3">
+        <widget class="QDoubleSpinBox" name="heightCurve">
+         <property name="toolTip">
+          <string>Exponent applied to each column's level before it becomes a height. 1.0 is linear; lower values lift quiet passages so the shape reads at a glance.</string>
+         </property>
+         <property name="decimals">
+          <number>2</number>
+         </property>
+         <property name="minimum">
+          <double>0.250000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.050000000000000</double>
          </property>
         </widget>
        </item>
@@ -783,9 +900,108 @@ Select from different types of displays for the waveform overview, which differ 
   <item>
    <widget class="QGroupBox" name="caching_groupbox">
     <property name="title">
-     <string>Caching</string>
+     <string>Analysis and caching</string>
     </property>
     <layout class="QVBoxLayout" name="caching_layout">
+     <item>
+      <layout class="QHBoxLayout" name="envelope_layout">
+       <item>
+        <widget class="QLabel" name="envelopeLabel">
+         <property name="text">
+          <string>Envelope</string>
+         </property>
+         <property name="buddy">
+          <cstring>envelopeComboBox</cstring>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="envelopeComboBox">
+         <property name="toolTip">
+          <string>How each column of the waveform summarizes its audio. Peak follows the loudest sample, RMS follows the average energy and tracks perceived loudness more closely. Applies to newly analyzed tracks; clear the cached waveforms to regenerate existing ones.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="envelope_spacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="crossover_layout">
+       <item>
+        <widget class="QLabel" name="crossoverLabel">
+         <property name="text">
+          <string>Band crossovers</string>
+         </property>
+         <property name="buddy">
+          <cstring>lowMidCrossover</cstring>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="lowMidCrossover">
+         <property name="toolTip">
+          <string>Frequency where the low band ends and the mid band begins. Applies to newly analyzed tracks; clear the cached waveforms to regenerate existing ones.</string>
+         </property>
+         <property name="suffix">
+          <string> Hz</string>
+         </property>
+         <property name="minimum">
+          <number>100</number>
+         </property>
+         <property name="maximum">
+          <number>2000</number>
+         </property>
+         <property name="singleStep">
+          <number>10</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="midHighCrossover">
+         <property name="toolTip">
+          <string>Frequency where the mid band ends and the high band begins. Applies to newly analyzed tracks; clear the cached waveforms to regenerate existing ones.</string>
+         </property>
+         <property name="suffix">
+          <string> Hz</string>
+         </property>
+         <property name="minimum">
+          <number>1000</number>
+         </property>
+         <property name="maximum">
+          <number>12000</number>
+         </property>
+         <property name="singleStep">
+          <number>50</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="crossover_spacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
      <item>
       <widget class="QCheckBox" name="enableWaveformCaching">
        <property name="text">
@@ -913,6 +1129,10 @@ Select from different types of displays for the waveform overview, which differ 
   <tabstop>lowVisualGain</tabstop>
   <tabstop>midVisualGain</tabstop>
   <tabstop>highVisualGain</tabstop>
+  <tabstop>bandContrast</tabstop>
+  <tabstop>colorModeComboBox</tabstop>
+  <tabstop>colorGain</tabstop>
+  <tabstop>heightCurve</tabstop>
   <tabstop>untilMarkShowBeatsCheckBox</tabstop>
   <tabstop>untilMarkShowTimeCheckBox</tabstop>
   <tabstop>untilMarkAlignComboBox</tabstop>
@@ -922,6 +1142,9 @@ Select from different types of displays for the waveform overview, which differ 
   <tabstop>overviewMinuteMarkersCheckBox</tabstop>
   <tabstop>overview_scale_normalize</tabstop>
   <tabstop>overview_scale_allReplayGain</tabstop>
+  <tabstop>envelopeComboBox</tabstop>
+  <tabstop>lowMidCrossover</tabstop>
+  <tabstop>midHighCrossover</tabstop>
   <tabstop>enableWaveformCaching</tabstop>
   <tabstop>enableWaveformGenerationWithAnalysis</tabstop>
   <tabstop>clearCachedWaveforms</tabstop>

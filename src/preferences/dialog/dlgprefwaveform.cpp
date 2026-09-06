@@ -18,6 +18,11 @@ const ConfigKey kOverviewTypeCfgKey(kWaveformGroup,
         QStringLiteral("WaveformOverviewType"));
 const ConfigKey kWaveformOptionsKey(kWaveformGroup,
         QStringLiteral("waveform_options"));
+const ConfigKey kEnvelopeKey(kWaveformGroup, QStringLiteral("Envelope"));
+const ConfigKey kLowMidCrossoverKey(kWaveformGroup, QStringLiteral("LowMidCrossoverHz"));
+const ConfigKey kMidHighCrossoverKey(kWaveformGroup, QStringLiteral("MidHighCrossoverHz"));
+constexpr int kLowMidCrossoverDefaultHz = 600;
+constexpr int kMidHighCrossoverDefaultHz = 4000;
 const ConfigKey kHardwareAccelerationKey(kWaveformGroup,
         QStringLiteral("use_hardware_acceleration"));
 } // namespace
@@ -96,6 +101,12 @@ DlgPrefWaveform::DlgPrefWaveform(
     stemDisplayModeComboBox->addItem(tr("Overlapping"));
     stemDisplayModeComboBox->addItem(tr("Stacked"));
 
+    envelopeComboBox->addItem(tr("Peak"));
+    envelopeComboBox->addItem(tr("RMS"));
+
+    colorModeComboBox->addItem(tr("Relative"));
+    colorModeComboBox->addItem(tr("Proportional"));
+
     // Adopt tr string from first GLSL hint
     requiresGLSLLabel2->setText(requiresGLSLLabel->text());
 
@@ -116,6 +127,34 @@ DlgPrefWaveform::DlgPrefWaveform(
             QOverload<int>::of(&QSpinBox::valueChanged),
             this,
             &DlgPrefWaveform::slotSetBeatGridAlpha);
+    connect(envelopeComboBox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &DlgPrefWaveform::slotSetEnvelope);
+    connect(lowMidCrossover,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            &DlgPrefWaveform::slotSetLowMidCrossover);
+    connect(midHighCrossover,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            &DlgPrefWaveform::slotSetMidHighCrossover);
+    connect(bandContrast,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this,
+            &DlgPrefWaveform::slotSetBandContrast);
+    connect(colorModeComboBox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &DlgPrefWaveform::slotSetColorMode);
+    connect(colorGain,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this,
+            &DlgPrefWaveform::slotSetColorGain);
+    connect(heightCurve,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this,
+            &DlgPrefWaveform::slotSetHeightCurve);
     connect(frameRateSlider,
             &QSlider::valueChanged,
             frameRateSpinBox,
@@ -374,6 +413,16 @@ void DlgPrefWaveform::slotUpdate() {
     overviewMinuteMarkersCheckBox->setChecked(drawOverviewMinuteMarkers);
     m_pOverviewMinuteMarkersControl->forceSet(drawOverviewMinuteMarkers);
 
+    envelopeComboBox->setCurrentIndex(m_pConfig->getValue<int>(kEnvelopeKey, 0));
+    lowMidCrossover->setValue(
+            m_pConfig->getValue<int>(kLowMidCrossoverKey, kLowMidCrossoverDefaultHz));
+    midHighCrossover->setValue(
+            m_pConfig->getValue<int>(kMidHighCrossoverKey, kMidHighCrossoverDefaultHz));
+    bandContrast->setValue(factory->getBandContrast());
+    colorModeComboBox->setCurrentIndex(static_cast<int>(factory->getColorMode()));
+    colorGain->setValue(factory->getColorGain());
+    heightCurve->setValue(factory->getHeightCurve());
+
     WaveformSettings waveformSettings(m_pConfig);
     enableWaveformCaching->setChecked(waveformSettings.waveformCachingEnabled());
     enableWaveformGenerationWithAnalysis->setChecked(
@@ -437,6 +486,14 @@ void DlgPrefWaveform::slotResetToDefaults() {
     // 60FPS is the default
     frameRateSlider->setValue(60);
     endOfTrackWarningTimeSlider->setValue(30);
+
+    envelopeComboBox->setCurrentIndex(0);
+    lowMidCrossover->setValue(kLowMidCrossoverDefaultHz);
+    midHighCrossover->setValue(kMidHighCrossoverDefaultHz);
+    bandContrast->setValue(WaveformWidgetFactory::getBandContrastDefault());
+    colorModeComboBox->setCurrentIndex(0);
+    colorGain->setValue(WaveformWidgetFactory::getColorGainDefault());
+    heightCurve->setValue(WaveformWidgetFactory::getHeightCurveDefault());
 
     // Waveform caching enabled.
     enableWaveformCaching->setChecked(true);
@@ -730,6 +787,36 @@ void DlgPrefWaveform::slotClearCachedWaveforms() {
     analysisDao.deleteAnalysesByType(dbConnection, AnalysisDao::TYPE_WAVEFORM);
     analysisDao.deleteAnalysesByType(dbConnection, AnalysisDao::TYPE_WAVESUMMARY);
     calculateCachedWaveformDiskUsage();
+}
+
+void DlgPrefWaveform::slotSetEnvelope(int index) {
+    m_pConfig->setValue(kEnvelopeKey, index);
+}
+
+void DlgPrefWaveform::slotSetLowMidCrossover(int hz) {
+    m_pConfig->setValue(kLowMidCrossoverKey, hz);
+}
+
+void DlgPrefWaveform::slotSetMidHighCrossover(int hz) {
+    m_pConfig->setValue(kMidHighCrossoverKey, hz);
+}
+
+void DlgPrefWaveform::slotSetBandContrast(double contrast) {
+    WaveformWidgetFactory::instance()->setBandContrast(contrast);
+}
+
+void DlgPrefWaveform::slotSetColorMode(int index) {
+    WaveformWidgetFactory::instance()->setColorMode(
+            index == 1 ? WaveformWidgetFactory::ColorMode::Proportional
+                       : WaveformWidgetFactory::ColorMode::Relative);
+}
+
+void DlgPrefWaveform::slotSetColorGain(double gain) {
+    WaveformWidgetFactory::instance()->setColorGain(gain);
+}
+
+void DlgPrefWaveform::slotSetHeightCurve(double curve) {
+    WaveformWidgetFactory::instance()->setHeightCurve(curve);
 }
 
 void DlgPrefWaveform::slotSetBeatGridAlpha(int alpha) {

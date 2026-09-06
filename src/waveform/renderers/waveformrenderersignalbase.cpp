@@ -20,6 +20,10 @@ WaveformRendererSignalBase::WaveformRendererSignalBase(
           m_lowVisualGain(1),
           m_midVisualGain(1),
           m_highVisualGain(1),
+          m_bandContrast(1.0f),
+          m_proportionalColor(false),
+          m_colorGain(1.0f),
+          m_heightCurve(1.0f),
           m_axesColor_r(0),
           m_axesColor_g(0),
           m_axesColor_b(0),
@@ -151,6 +155,27 @@ void WaveformRendererSignalBase::setup(const QDomNode& node,
                 setMidVisualGain(midGain);
                 setHighVisualGain(highGain);
             });
+
+    connect(pWaveformFactory,
+            &WaveformWidgetFactory::bandContrastChanged,
+            this,
+            &WaveformRendererSignalBase::setBandContrast);
+    setBandContrast(pWaveformFactory->getBandContrast());
+    connect(pWaveformFactory,
+            &WaveformWidgetFactory::colorModeChanged,
+            this,
+            &WaveformRendererSignalBase::setColorMode);
+    setColorMode(static_cast<int>(pWaveformFactory->getColorMode()));
+    connect(pWaveformFactory,
+            &WaveformWidgetFactory::colorGainChanged,
+            this,
+            &WaveformRendererSignalBase::setColorGain);
+    setColorGain(pWaveformFactory->getColorGain());
+    connect(pWaveformFactory,
+            &WaveformWidgetFactory::heightCurveChanged,
+            this,
+            &WaveformRendererSignalBase::setHeightCurve);
+    setHeightCurve(pWaveformFactory->getHeightCurve());
 
     setAllChannelVisualGain(pWaveformFactory->getVisualGain(BandIndex::AllBand));
     setLowVisualGain(pWaveformFactory->getVisualGain(BandIndex::Low));
