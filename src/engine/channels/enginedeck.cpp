@@ -9,6 +9,9 @@
 #include "engine/effects/groupfeaturestate.h"
 #include "engine/enginebuffer.h"
 #include "engine/enginepregain.h"
+#ifdef __LIVE_STEMS__
+#include "engine/stemmixer.h"
+#endif
 #include "moc_enginedeck.cpp"
 #include "track/track.h"
 #include "util/assert.h"
@@ -81,6 +84,12 @@ EngineDeck::EngineDeck(
         pMuteButton->setButtonMode(mixxx::control::ButtonMode::PowerWindow);
         m_stemMute.push_back(std::move(pMuteButton));
     }
+#ifdef __LIVE_STEMS__
+    m_pStemsReady = std::make_unique<ControlObject>(ConfigKey(getGroup(), "stems_ready"));
+    m_pStemsReady->setReadOnly();
+    m_pStemsActive = std::make_unique<ControlObject>(ConfigKey(getGroup(), "stems_active"));
+    m_pStemsActive->setReadOnly();
+#endif
 #endif
 }
 
@@ -104,6 +113,26 @@ void EngineDeck::slotTrackLoaded(TrackPointer pNewTrack,
         m_pStemCount->forceSet(stemCount);
     } else {
         m_pStemCount->forceSet(0);
+    }
+}
+#endif
+
+#ifdef __LIVE_STEMS__
+void EngineDeck::processLiveStems() {
+    StemMixer* pMixer = m_pBuffer->stemMixer();
+    for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
+        pMixer->setGain(stemIdx,
+                m_stemMute[stemIdx]->toBool()
+                        ? 0.0f
+                        : static_cast<float>(m_stemGain[stemIdx]->get()));
+    }
+    const double ready = pMixer->readyFraction();
+    if (ready != m_pStemsReady->get()) {
+        m_pStemsReady->forceSet(ready);
+    }
+    const double active = pMixer->isActive() ? 1.0 : 0.0;
+    if (active != m_pStemsActive->get()) {
+        m_pStemsActive->forceSet(active);
     }
 }
 #endif
@@ -239,6 +268,11 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
         // Process the raw audio
         if (m_pBuffer->getChannelCount() <= mixxx::kEngineChannelOutputCount) {
             // Process a single mono or stereo channel
+#ifdef __LIVE_STEMS__
+            if (isPrimaryDeck()) {
+                processLiveStems();
+            }
+#endif
 #endif
             m_pBuffer->process(pOut, bufferSize);
 #ifdef __STEM__

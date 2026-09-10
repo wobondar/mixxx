@@ -18,6 +18,11 @@
 #include "track/bpm.h"
 #include "track/track_decl.h"
 #include "util/types.h"
+#ifdef __LIVE_STEMS__
+#include <memory>
+
+#include "stems/stemtrack.h"
+#endif
 
 #ifdef __RUBBERBAND__
 #include "engine/bufferscalers/enginebufferscalerubberband.h"
@@ -40,6 +45,7 @@ class LoopingControl;
 class ClockControl;
 class CueControl;
 class ReadAheadManager;
+class StemMixer;
 class ControlObject;
 class ControlProxy;
 class ControlPushButton;
@@ -117,6 +123,11 @@ class EngineBuffer : public EngineObject {
     mixxx::audio::ChannelCount getChannelCount() const {
         return m_channelCount;
     }
+#ifdef __LIVE_STEMS__
+    StemMixer* stemMixer() const {
+        return m_pStemMixer.get();
+    }
+#endif
     bool getScratching() const;
     bool isReverse() const;
     /// Returns current bpm value (not thread-safe)
@@ -496,6 +507,13 @@ class EngineBuffer : public EngineObject {
     mixxx::audio::ChannelCount m_channelCount;
 
     TrackPointer m_pCurrentTrack;
+#ifdef __LIVE_STEMS__
+    std::unique_ptr<StemMixer> m_pStemMixer;
+    // The engine thread may still read the previous buffer for one callback
+    // after a swap, so it outlives the swap by one load.
+    mixxx::StemTrackPointer m_pStemTrack;
+    mixxx::StemTrackPointer m_pPreviousStemTrack;
+#endif
 #ifdef __SCALER_DEBUG__
     QFile df;
     QTextStream writer;

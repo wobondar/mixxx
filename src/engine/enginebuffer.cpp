@@ -20,6 +20,11 @@
 #include "engine/controls/ratecontrol.h"
 #include "engine/enginemixer.h"
 #include "engine/readaheadmanager.h"
+#ifdef __LIVE_STEMS__
+#include "engine/stemmixer.h"
+#include "stems/stemestimator.h"
+#include "track/steminfoimporter.h"
+#endif
 #include "engine/sync/enginesync.h"
 #include "engine/sync/synccontrol.h"
 #include "mixer/playermanager.h"
@@ -268,6 +273,10 @@ EngineBuffer::EngineBuffer(const QString& group,
     m_pReadAheadManager = new ReadAheadManager(m_pReader,
                                                m_pLoopingControl);
     m_pReadAheadManager->addRateControl(m_pRateControl);
+#ifdef __LIVE_STEMS__
+    m_pStemMixer = std::make_unique<StemMixer>();
+    m_pReadAheadManager->setStemMixer(m_pStemMixer.get());
+#endif
 
     m_pKeylockEngine = new ControlProxy(kAppGroup, QStringLiteral("keylock_engine"), this);
     m_pKeylockEngine->connectValueChanged(this,
@@ -590,6 +599,30 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
 
     m_queuedSeek.setValue(kNoQueuedSeek);
 
+#ifdef __LIVE_STEMS__
+    m_pStemMixer->setTrack(nullptr);
+    m_pPreviousStemTrack = std::move(m_pStemTrack);
+    auto* pEstimator = mixxx::StemEstimator::instance();
+    // A file with a stem atom plays through the native stem path and never
+    // reaches here as stereo; anything else is a candidate for separation.
+    if (pEstimator && m_channelCount == mixxx::audio::ChannelCount::stereo() &&
+            !mixxx::StemInfoImporter::hasStemAtom(pTrack->getLocation())) {
+        m_pStemTrack = pEstimator->requestTrack(
+                getGroup(), pTrack, static_cast<SINT>(trackNumFrame.value()));
+        // Widgets take stem names and colours from the track, the same way
+        // they do for native stem files
+        QList<StemInfo> stemInfo;
+        if (m_pStemTrack) {
+            const auto& presentation = pEstimator->presentation();
+            for (int i = 0; i < presentation.numStems; ++i) {
+                stemInfo.append(StemInfo(presentation.names[i], presentation.colors[i]));
+            }
+        }
+        pTrack->setLiveStemInfo(stemInfo);
+    }
+    m_pStemMixer->setTrack(m_pStemTrack.get());
+#endif
+
     // Reset the pitch value for the new track.
     m_pause.unlock();
 
@@ -655,6 +688,14 @@ void EngineBuffer::ejectTrack() {
     m_pReplayGain->set(0.0);
 
     m_queuedSeek.setValue(kNoQueuedSeek);
+
+#ifdef __LIVE_STEMS__
+    m_pStemMixer->setTrack(nullptr);
+    m_pPreviousStemTrack = std::move(m_pStemTrack);
+    if (auto* pEstimator = mixxx::StemEstimator::instance()) {
+        pEstimator->releaseTrack(getGroup());
+    }
+#endif
 
     m_pause.unlock();
 
@@ -1235,6 +1276,11 @@ void EngineBuffer::process(CSAMPLE* pOutput, const std::size_t bufferSize) {
 
     if (isTrackLoaded() && m_pause.tryLock()) {
         processTrackLocked(pOutput, bufferSize, m_sampleRate);
+#ifdef __LIVE_STEMS__
+        if (m_playPos.isValid()) {
+            m_pStemMixer->setPlayPosition(static_cast<SINT>(m_playPos.value()));
+        }
+#endif
         // release the pauselock
         m_pause.unlock();
     } else {

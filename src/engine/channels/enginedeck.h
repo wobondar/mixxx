@@ -105,6 +105,11 @@ class EngineDeck : public EngineChannel, public AudioDestination {
     std::vector<std::unique_ptr<ControlPushButton>> m_stemMute;
     bool m_stemClonedState;
 #endif
+#ifdef __LIVE_STEMS__
+    void processLiveStems();
+    std::unique_ptr<ControlObject> m_pStemsReady;
+    std::unique_ptr<ControlObject> m_pStemsActive;
+#endif
 
     // Begin vinyl passthrough fields
     QScopedPointer<ControlObject> m_pInputConfigured;

@@ -17,6 +17,9 @@
 #include "database/mixxxdb.h"
 #include "effects/effectsmanager.h"
 #include "engine/enginemixer.h"
+#ifdef __LIVE_STEMS__
+#include "stems/stemestimator.h"
+#endif
 #ifdef __RUBBERBAND__
 #include "engine/bufferscalers/rubberbandworkerpool.h"
 #endif
@@ -533,6 +536,11 @@ void CoreServices::initialize(QApplication* pApp) {
     emit initializationProgressUpdate(20, tr("effects"));
     m_pEffectsManager = std::make_shared<EffectsManager>(pConfig, pChannelHandleFactory);
 
+#ifdef __LIVE_STEMS__
+    // Model sessions load here, before any deck can request a track
+    mixxx::StemEstimator::initialize(pConfig);
+#endif
+
     m_pEngine = std::make_shared<EngineMixer>(
             pConfig,
             "[Master]",
@@ -952,6 +960,11 @@ void CoreServices::finalize() {
     // that all modified track metadata of loaded tracks is saved.
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "deleting PlayerManager";
     CLEAR_AND_CHECK_DELETED(m_pPlayerManager);
+
+#ifdef __LIVE_STEMS__
+    // Decks are gone, so no stem buffer is read any more
+    mixxx::StemEstimator::shutdown();
+#endif
 
     // Delete the library after the view so there are no dangling pointers to
     // the data models.

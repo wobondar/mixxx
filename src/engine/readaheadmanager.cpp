@@ -3,12 +3,14 @@
 #include "engine/cachingreader/cachingreader.h"
 #include "engine/controls/loopingcontrol.h"
 #include "engine/controls/ratecontrol.h"
+#include "engine/stemmixer.h"
 #include "util/defs.h"
 #include "util/sample.h"
 
 ReadAheadManager::ReadAheadManager()
         : m_pLoopingControl(nullptr),
           m_pRateControl(nullptr),
+          m_pStemMixer(nullptr),
           m_currentPosition(0),
           m_pReader(nullptr),
           m_pCrossFadeBuffer(SampleUtil::alloc(MAX_BUFFER_LEN)),
@@ -21,6 +23,7 @@ ReadAheadManager::ReadAheadManager(CachingReader* pReader,
         LoopingControl* pLoopingControl)
         : m_pLoopingControl(pLoopingControl),
           m_pRateControl(nullptr),
+          m_pStemMixer(nullptr),
           m_currentPosition(0),
           m_pReader(pReader),
           m_pCrossFadeBuffer(SampleUtil::alloc(MAX_BUFFER_LEN)),
@@ -98,7 +101,11 @@ SINT ReadAheadManager::getNextSamples(double dRate,
         // Set the cache miss flag to decide when to apply ramping
         // after the following read attempts.
         m_cacheMissCount++;
-    } else if (m_cacheMissCount > 0) {
+    } else if (m_pStemMixer) {
+        m_pStemMixer->apply(
+                pOutput, start_sample, samples_from_reader, in_reverse, channelCount);
+    }
+    if (readResult != CachingReader::ReadResult::UNAVAILABLE && m_cacheMissCount > 0) {
         // Previous read was a cache miss, but now we got something back.
         // Apply ramping gain, because the last buffer has unwanted silence
         // and new samples without fading are causing a pop.
@@ -191,6 +198,13 @@ SINT ReadAheadManager::getNextSamples(double dRate,
                 // Set the cache miss flag to decide when to apply ramping
                 // after the following read attempts.
                 m_cacheMissCount++;
+            } else if (m_pStemMixer) {
+                m_pStemMixer->apply(m_pCrossFadeBuffer,
+                        loop_read_position +
+                                (in_reverse ? crossFadeStart : -crossFadeStart),
+                        crossFadeSamples,
+                        in_reverse,
+                        channelCount);
             }
 
             // do crossfade from the current buffer into the new loop beginning

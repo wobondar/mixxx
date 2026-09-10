@@ -2707,6 +2707,58 @@ if(STEM)
   endif()
 endif()
 
+# Live stems: background separation of loaded tracks through ONNX Runtime
+default_option(LIVE_STEMS "Live stem separation (needs STEM)" "STEM")
+if(LIVE_STEMS)
+  if(NOT STEM)
+    message(FATAL_ERROR "LIVE_STEMS requires that also STEM is enabled")
+  endif()
+  set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime distribution (empty = download the official release)")
+  set(ONNXRUNTIME_VERSION 1.22.0)
+  if(NOT ONNXRUNTIME_ROOT)
+    if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+      set(_ort_package "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}")
+      set(_ort_sha256 "cab6dcbd77e7ec775390e7b73a8939d45fec3379b017c7cb74f5b204c1a1cc07")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+      set(_ort_package "onnxruntime-linux-aarch64-${ONNXRUNTIME_VERSION}")
+      set(_ort_sha256 "bb76395092d150b52c7092dc6b8f2fe4d80f0f3bf0416d2f269193e347e24702")
+    else()
+      message(FATAL_ERROR "LIVE_STEMS: no ONNX Runtime download known for this platform, set ONNXRUNTIME_ROOT")
+    endif()
+    set(_ort_dir "${CMAKE_BINARY_DIR}/onnxruntime")
+    set(ONNXRUNTIME_ROOT "${_ort_dir}/${_ort_package}")
+    if(NOT EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
+      file(
+        DOWNLOAD
+        "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/${_ort_package}.tgz"
+        "${_ort_dir}/${_ort_package}.tgz"
+        EXPECTED_HASH SHA256=${_ort_sha256}
+        SHOW_PROGRESS
+      )
+      file(ARCHIVE_EXTRACT INPUT "${_ort_dir}/${_ort_package}.tgz" DESTINATION "${_ort_dir}")
+    endif()
+  endif()
+  find_library(ONNXRUNTIME_LIBRARY NAMES onnxruntime PATHS "${ONNXRUNTIME_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  target_compile_definitions(mixxx-lib PUBLIC __LIVE_STEMS__)
+  target_include_directories(mixxx-lib SYSTEM PUBLIC "${ONNXRUNTIME_ROOT}/include")
+  target_link_libraries(mixxx-lib PUBLIC "${ONNXRUNTIME_LIBRARY}")
+  target_sources(
+    mixxx-lib
+    PRIVATE
+      src/engine/stemmixer.cpp
+      src/stems/spleeterprocessor.cpp
+      src/stems/stemestimator.cpp
+  )
+  set_property(TARGET mixxx APPEND PROPERTY BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib")
+  if(NOT APPLE)
+    # The runtime ships with the install tree in its own directory so it
+    # cannot shadow a system copy; the binary finds it through its rpath.
+    file(GLOB _ort_runtime_files "${ONNXRUNTIME_ROOT}/lib/libonnxruntime*.so*")
+    install(FILES ${_ort_runtime_files} DESTINATION "${CMAKE_INSTALL_LIBDIR}/mixxx")
+    set_property(TARGET mixxx APPEND PROPERTY INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}/mixxx")
+  endif()
+endif()
+
 if(BUILD_TESTING)
   set(
     src-mixxx-test
@@ -2848,6 +2900,10 @@ if(BUILD_TESTING)
   endif()
 
   add_executable(mixxx-test ${src-mixxx-test})
+  if(LIVE_STEMS)
+    target_sources(mixxx-test PRIVATE src/test/livestemstest.cpp)
+    set_property(TARGET mixxx-test APPEND PROPERTY BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib")
+  endif()
   target_compile_definitions(
     mixxx-test
     PUBLIC RESOURCE_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/res"

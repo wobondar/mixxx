@@ -10,6 +10,7 @@
 
 class LoopingControl;
 class RateControl;
+class StemMixer;
 
 /// ReadAheadManager is a tool for keeping track of the engine's current position
 /// in a file. In the case that the engine needs to read ahead of the current
@@ -40,6 +41,10 @@ class ReadAheadManager {
     /// which samples to return.
     void addLoopingControl();
     void addRateControl(RateControl* pRateControl);
+    /// Stems are applied to every read before the scaler sees it.
+    void setStemMixer(StemMixer* pStemMixer) {
+        m_pStemMixer = pStemMixer;
+    }
 
     /// Get the current read-ahead position in samples.
     /// unused in Mixxx, but needed for testing
@@ -123,6 +128,7 @@ class ReadAheadManager {
 
     LoopingControl* m_pLoopingControl;
     RateControl* m_pRateControl;
+    StemMixer* m_pStemMixer;
     std::list<ReadLogEntry> m_readAheadLog;
     double m_currentPosition; // In absolute samples
     CachingReader* m_pReader;

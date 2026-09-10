@@ -351,8 +351,23 @@ class Track : public QObject {
     QList<StemInfo> getStemInfo() const {
         const QMutexLocker lock(&m_qMutex);
         // lock thread-unsafe copy constructors of QList
+#ifdef __LIVE_STEMS__
+        if (m_stemInfo.isEmpty()) {
+            return m_liveStemInfo;
+        }
+#endif
         return m_stemInfo;
     }
+#ifdef __LIVE_STEMS__
+    /// Stems separated at runtime rather than read from the file. Shown by
+    /// the same widgets as native stems, never written to the database, and
+    /// kept apart from the file's stem info so a metadata re-import (which
+    /// finds none) cannot erase it.
+    void setLiveStemInfo(QList<StemInfo> stemInfo) {
+        const QMutexLocker lock(&m_qMutex);
+        m_liveStemInfo = std::move(stemInfo);
+    }
+#endif
     // Setter is only available internally. See setStemPointsWhileLocked
 
     bool hasStem() const {
@@ -617,6 +632,9 @@ class Track : public QObject {
 #ifdef __STEM__
     // The list of stem info
     QList<StemInfo> m_stemInfo;
+#ifdef __LIVE_STEMS__
+    QList<StemInfo> m_liveStemInfo;
+#endif
 #endif
 
     // Storage for the track's beats
