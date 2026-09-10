@@ -27,6 +27,9 @@
 #endif // __VINYLCONTROL__
 
 #include "preferences/dialog/dlgprefautodj.h"
+#ifdef __LIVE_STEMS__
+#include "preferences/dialog/dlgprefstems.h"
+#endif
 #include "preferences/dialog/dlgprefcolors.h"
 #include "preferences/dialog/dlgprefdeck.h"
 #include "preferences/dialog/dlgprefeffects.h"
@@ -232,6 +235,14 @@ DlgPreferences::DlgPreferences(
                           new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
             tr("Normalization"),
             "ic_preferences_replaygain.svg");
+
+#ifdef __LIVE_STEMS__
+    addPageWidget(PreferencesPage(
+                          new DlgPrefStems(this, m_pConfig),
+                          new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
+            tr("Stems"),
+            "ic_preferences_decks.svg");
+#endif
 
 #ifdef __MODPLUG__
     addPageWidget(PreferencesPage(

@@ -2746,6 +2746,8 @@ if(LIVE_STEMS)
     mixxx-lib
     PRIVATE
       src/engine/stemmixer.cpp
+      src/preferences/dialog/dlgprefstems.cpp
+      src/preferences/dialog/dlgprefstemsdlg.ui
       src/stems/spleeterprocessor.cpp
       src/stems/stemestimator.cpp
   )

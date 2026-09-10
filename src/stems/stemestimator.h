@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QColor>
+#include <QDir>
+#include <QElapsedTimer>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -21,6 +23,27 @@
 
 namespace mixxx {
 
+/// Configuration shared by the estimator and its preferences page.
+namespace stemconfig {
+constexpr const char* kGroup = "[LiveStems]";
+constexpr int kDefaultMode = 0;
+constexpr int kDefaultBins = 1536;
+constexpr int kDefaultThreads = 1;
+constexpr bool kDefaultCache = true;
+constexpr int kDefaultCacheMaxMb = 50 * 1024;
+constexpr const char* kCacheSuffix = ".stems";
+
+inline QString defaultModelDirectory(const UserSettingsPointer& pConfig) {
+    return QDir(pConfig->getSettingsPath()).filePath(QStringLiteral("stemmodels"));
+}
+inline QString modelDirectory(const UserSettingsPointer& pConfig) {
+    return pConfig->getValue(ConfigKey(kGroup, "model_dir"), defaultModelDirectory(pConfig));
+}
+inline QString cacheDirectory(const UserSettingsPointer& pConfig) {
+    return QDir(pConfig->getSettingsPath()).filePath(QStringLiteral("stemcache"));
+}
+} // namespace stemconfig
+
 /// Stems presented to the user for a stems mode. Model stems are folded
 /// into these through `fold` (model stem name to presented index).
 struct StemPresentation {
@@ -36,8 +59,13 @@ struct StemPresentation {
 /// following each deck's playhead: the region under the playhead is done
 /// first, then everything after it, then the head of the track.
 ///
+/// Finished separations are kept on disk under <settings>/stemcache, keyed
+/// by the file's content hash, model and bin count, and evicted least
+/// recently used once the directory exceeds the configured size.
+///
 /// Preferences ([LiveStems]): mode (0 disables, otherwise the stem count),
-/// bins, threads, model_dir (defaults to <settings>/stemmodels).
+/// deckN, bins, threads, model_dir (defaults to <settings>/stemmodels),
+/// cache, cache_max_mb.
 class StemEstimator : public QObject {
     Q_OBJECT
   public:
@@ -55,6 +83,10 @@ class StemEstimator : public QObject {
     const StemPresentation& presentation() const {
         return m_presentation;
     }
+    /// Separation is opt-in per deck ([LiveStems] deckN). Deck and cache
+    /// preferences are read per job, so they apply to the next track loaded
+    /// without a restart.
+    bool isDeckEnabled(const QString& group) const;
 
     /// Registers a loaded track for separation and returns the buffer the
     /// deck mixes from. Null when disabled or the track cannot be separated.
@@ -70,8 +102,14 @@ class StemEstimator : public QObject {
         AudioSourcePointer pAudioSource;
         SpleeterProcessor::Run run;
         std::vector<int> fold;
+        QString cachePath;
+        bool cacheChecked = false;
         bool failed = false;
         std::atomic<bool> cancelled{false};
+        // Wall clock since the first split and the time spent inside the
+        // model for this job alone; the two differ while decks interleave.
+        QElapsedTimer wall;
+        qint64 busyMs = 0;
     };
 
     explicit StemEstimator(UserSettingsPointer pConfig);
@@ -81,11 +119,17 @@ class StemEstimator : public QObject {
     bool step(Job* pJob);
     bool openSource(Job* pJob);
     void readMix(Job* pJob, SINT frame, SINT numFrames, float* out);
+    QString cachePathFor(const Job& job) const;
+    bool loadFromCache(Job* pJob);
+    void saveToCache(const Job& job);
+    void evictCache(const QString& keep);
 
     static StemEstimator* s_pInstance;
 
+    UserSettingsPointer m_pConfig;
     std::unique_ptr<SpleeterProcessor> m_pProcessor;
     StemPresentation m_presentation;
+    int m_bins = 0;
     std::mutex m_mutex;
     std::condition_variable m_wake;
     std::map<QString, std::shared_ptr<Job>> m_jobs;

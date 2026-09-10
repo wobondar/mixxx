@@ -607,10 +607,13 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
     // reaches here as stereo; anything else is a candidate for separation.
     if (pEstimator && m_channelCount == mixxx::audio::ChannelCount::stereo() &&
             !mixxx::StemInfoImporter::hasStemAtom(pTrack->getLocation())) {
-        m_pStemTrack = pEstimator->requestTrack(
-                getGroup(), pTrack, static_cast<SINT>(trackNumFrame.value()));
+        if (pEstimator->isDeckEnabled(getGroup())) {
+            m_pStemTrack = pEstimator->requestTrack(
+                    getGroup(), pTrack, static_cast<SINT>(trackNumFrame.value()));
+        }
         // Widgets take stem names and colours from the track, the same way
-        // they do for native stem files
+        // they do for native stem files. The track object is shared between
+        // decks, so a deck without separation clears what another deck set.
         QList<StemInfo> stemInfo;
         if (m_pStemTrack) {
             const auto& presentation = pEstimator->presentation();

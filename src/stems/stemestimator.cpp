@@ -1,12 +1,20 @@
 #include "stems/stemestimator.h"
 
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSaveFile>
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 
+#include "mixer/playermanager.h"
 #include "moc_stemestimator.cpp"
 #include "sources/soundsourceproxy.h"
 #include "track/track.h"
+#include "util/defs.h"
 #include "util/logger.h"
 
 namespace mixxx {
@@ -15,7 +23,26 @@ namespace {
 
 const Logger kLogger("StemEstimator");
 
-constexpr const char* kConfigGroup = "[LiveStems]";
+struct CacheHeader {
+    char magic[8];
+    uint32_t version;
+    uint32_t numStems;
+    int64_t numFrames;
+};
+constexpr char kCacheMagic[8] = {'M', 'I', 'X', 'X', 'S', 'T', 'E', 'M'};
+constexpr uint32_t kCacheVersion = 1;
+
+QString hashFile(const QString& path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    if (!hash.addData(&file)) {
+        return QString();
+    }
+    return QString::fromLatin1(hash.result().toHex());
+}
 
 StemPresentation presentationForMode(int mode) {
     StemPresentation p;
@@ -65,7 +92,8 @@ void StemEstimator::initialize(UserSettingsPointer pConfig) {
     if (s_pInstance) {
         return;
     }
-    const int mode = pConfig->getValue(ConfigKey(kConfigGroup, "mode"), 0);
+    const int mode = pConfig->getValue(
+            ConfigKey(stemconfig::kGroup, "mode"), stemconfig::kDefaultMode);
     if (mode == 0) {
         return;
     }
@@ -83,19 +111,33 @@ void StemEstimator::shutdown() {
     s_pInstance = nullptr;
 }
 
+bool StemEstimator::isDeckEnabled(const QString& group) const {
+    for (int i = 0; i < kMaxNumberOfDecks; ++i) {
+        if (PlayerManager::groupForDeck(i) == group) {
+            return m_pConfig->getValue(
+                    ConfigKey(stemconfig::kGroup, QStringLiteral("deck%1").arg(i + 1)), false);
+        }
+    }
+    return false;
+}
+
 StemEstimator::StemEstimator(UserSettingsPointer pConfig)
-        : m_stop(false) {
-    const int mode = pConfig->getValue(ConfigKey(kConfigGroup, "mode"), 0);
+        : m_pConfig(pConfig),
+          m_stop(false) {
+    const int mode = pConfig->getValue(
+            ConfigKey(stemconfig::kGroup, "mode"), stemconfig::kDefaultMode);
     m_presentation = presentationForMode(mode);
     if (m_presentation.numStems == 0) {
         return;
     }
     SpleeterModelConfig config;
-    config.bins = pConfig->getValue(ConfigKey(kConfigGroup, "bins"), 1536);
-    config.threads = pConfig->getValue(ConfigKey(kConfigGroup, "threads"), 1);
-    const QString modelDir = pConfig->getValue(ConfigKey(kConfigGroup, "model_dir"),
-            QDir(pConfig->getSettingsPath()).filePath(QStringLiteral("stemmodels")));
-    config.directory = QDir(modelDir).filePath(m_presentation.modelSubdir);
+    config.bins = pConfig->getValue(
+            ConfigKey(stemconfig::kGroup, "bins"), stemconfig::kDefaultBins);
+    config.threads = pConfig->getValue(
+            ConfigKey(stemconfig::kGroup, "threads"), stemconfig::kDefaultThreads);
+    config.directory = QDir(stemconfig::modelDirectory(pConfig))
+                               .filePath(m_presentation.modelSubdir);
+    m_bins = config.bins;
     m_pProcessor = std::make_unique<SpleeterProcessor>(config);
     if (!m_pProcessor->isValid()) {
         return;
@@ -184,6 +226,21 @@ void StemEstimator::workerLoop() {
 
 bool StemEstimator::step(Job* pJob) {
     StemTrack* pTrack = pJob->pStemTrack.get();
+    if (!pJob->cacheChecked) {
+        pJob->cacheChecked = true;
+        if (m_pConfig->getValue(
+                    ConfigKey(stemconfig::kGroup, "cache"), stemconfig::kDefaultCache)) {
+            pJob->cachePath = cachePathFor(*pJob);
+            if (loadFromCache(pJob)) {
+                return true;
+            }
+        }
+    }
+    if (!pJob->wall.isValid()) {
+        pJob->wall.start();
+    }
+    QElapsedTimer stepTimer;
+    stepTimer.start();
     const SINT numSplits = pTrack->numRegions();
     const SINT wanted = StemTrack::regionOf(
             std::clamp<SINT>(pTrack->wantedFrame(), 0, pTrack->numFrames() - 1));
@@ -230,7 +287,120 @@ bool StemEstimator::step(Job* pJob) {
         pJob->failed = true;
         return false;
     }
+    pJob->busyMs += stepTimer.elapsed();
+    if (pTrack->doneRegionCount() == numSplits && !pJob->cancelled.load()) {
+        const double seconds = static_cast<double>(pTrack->numFrames()) /
+                pJob->pAudioSource->getSignalInfo().getSampleRate().toDouble();
+        kLogger.info() << "separated" << pJob->pTrack->getLocation() << "in"
+                       << pJob->wall.elapsed() / 1000.0 << "s wall,"
+                       << pJob->busyMs / 1000.0 << "s busy,"
+                       << seconds / (pJob->busyMs / 1000.0) << "x realtime";
+        saveToCache(*pJob);
+    }
     return true;
+}
+
+QString StemEstimator::cachePathFor(const Job& job) const {
+    const QString hash = hashFile(job.pTrack->getLocation());
+    if (hash.isEmpty()) {
+        return QString();
+    }
+    return QDir(stemconfig::cacheDirectory(m_pConfig))
+            .filePath(QStringLiteral("%1-%2-%3-%4%5")
+                            .arg(hash,
+                                    m_presentation.modelSubdir,
+                                    QString::number(m_bins),
+                                    QString::number(m_presentation.numStems),
+                                    QLatin1String(stemconfig::kCacheSuffix)));
+}
+
+bool StemEstimator::loadFromCache(Job* pJob) {
+    if (pJob->cachePath.isEmpty()) {
+        return false;
+    }
+    QFile file(pJob->cachePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    StemTrack* pTrack = pJob->pStemTrack.get();
+    CacheHeader header;
+    if (file.read(reinterpret_cast<char*>(&header), sizeof(header)) != sizeof(header) ||
+            std::memcmp(header.magic, kCacheMagic, sizeof(kCacheMagic)) != 0 ||
+            header.version != kCacheVersion ||
+            header.numStems != static_cast<uint32_t>(pTrack->numStems()) ||
+            header.numFrames != pTrack->numFrames()) {
+        kLogger.warning() << "ignoring unusable cache file" << pJob->cachePath;
+        return false;
+    }
+    const qint64 bytes = static_cast<qint64>(pTrack->numFrames()) * pTrack->numStems() * 2 *
+            sizeof(int16_t);
+    if (file.read(reinterpret_cast<char*>(pTrack->frameData(0)), bytes) != bytes) {
+        kLogger.warning() << "short cache file" << pJob->cachePath;
+        return false;
+    }
+    for (SINT region = 0; region < pTrack->numRegions(); ++region) {
+        pTrack->markRegionDone(region);
+    }
+    // Last use decides eviction order
+    file.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+    kLogger.debug() << "cache hit" << pJob->pTrack->getLocation();
+    return true;
+}
+
+void StemEstimator::saveToCache(const Job& job) {
+    if (job.cachePath.isEmpty()) {
+        return;
+    }
+    const QString cacheDir = stemconfig::cacheDirectory(m_pConfig);
+    if (!QDir().mkpath(cacheDir)) {
+        kLogger.warning() << "cannot create" << cacheDir;
+        return;
+    }
+    const StemTrack* pTrack = job.pStemTrack.get();
+    CacheHeader header;
+    std::memcpy(header.magic, kCacheMagic, sizeof(kCacheMagic));
+    header.version = kCacheVersion;
+    header.numStems = static_cast<uint32_t>(pTrack->numStems());
+    header.numFrames = pTrack->numFrames();
+    const qint64 bytes = static_cast<qint64>(pTrack->numFrames()) * pTrack->numStems() * 2 *
+            sizeof(int16_t);
+    QSaveFile file(job.cachePath);
+    if (!file.open(QIODevice::WriteOnly) ||
+            file.write(reinterpret_cast<const char*>(&header), sizeof(header)) !=
+                    sizeof(header) ||
+            file.write(reinterpret_cast<const char*>(pTrack->frameData(0)), bytes) != bytes ||
+            !file.commit()) {
+        kLogger.warning() << "cannot write" << job.cachePath << file.errorString();
+        return;
+    }
+    evictCache(job.cachePath);
+}
+
+void StemEstimator::evictCache(const QString& keep) {
+    const qint64 maxBytes =
+            static_cast<qint64>(m_pConfig->getValue(
+                    ConfigKey(stemconfig::kGroup, "cache_max_mb"),
+                    stemconfig::kDefaultCacheMaxMb)) *
+            1024 * 1024;
+    const QDir dir(stemconfig::cacheDirectory(m_pConfig));
+    // Newest first, so eviction pops from the back
+    const QFileInfoList files = dir.entryInfoList(
+            {QStringLiteral("*") + QLatin1String(stemconfig::kCacheSuffix)},
+            QDir::Files,
+            QDir::Time);
+    qint64 total = 0;
+    for (const QFileInfo& info : files) {
+        total += info.size();
+    }
+    for (auto it = files.rbegin(); it != files.rend() && total > maxBytes; ++it) {
+        if (it->absoluteFilePath() == keep) {
+            continue;
+        }
+        if (QFile::remove(it->absoluteFilePath())) {
+            total -= it->size();
+            kLogger.debug() << "evicted" << it->fileName();
+        }
+    }
 }
 
 bool StemEstimator::openSource(Job* pJob) {

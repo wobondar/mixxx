@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DlgPrefStemsDlg</class>
+ <widget class="QWidget" name="DlgPrefStemsDlg">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>658</width>
+    <height>360</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Stems Preferences</string>
+  </property>
+  <layout class="QVBoxLayout" name="StemsLayout">
+
+   <item>
+    <widget class="QGroupBox" name="SeparationGroup">
+     <property name="title">
+      <string>Live Stem Separation</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+     </property>
+     <layout class="QGridLayout" name="SeparationLayout">
+
+      <item row="0" column="0">
+       <widget class="QLabel" name="modeLabel">
+        <property name="text">
+         <string>Stems</string>
+        </property>
+        <property name="buddy">
+         <cstring>modeComboBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="modeComboBox">
+        <property name="toolTip">
+         <string>Tracks without their own stems are separated in the background after loading. The file plays unchanged until a stem fader or mute is moved.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Off</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>2 (Instrumental, Vocals)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>3 (Drums, Music, Vocals)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>4 (Drums, Bass, Other, Vocals)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+
+      <item row="0" column="2">
+       <spacer name="modeSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </spacer>
+      </item>
+
+      <item row="1" column="0">
+       <widget class="QLabel" name="decksLabel">
+        <property name="text">
+         <string>Separate on</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1" colspan="2">
+       <layout class="QHBoxLayout" name="decksLayout">
+        <item>
+         <widget class="QCheckBox" name="deck1CheckBox">
+          <property name="toolTip">
+           <string>Decks that separate tracks on load. Tracks with their own stems play them on every deck regardless.</string>
+          </property>
+          <property name="text">
+           <string>Deck 1</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="deck2CheckBox">
+          <property name="text">
+           <string>Deck 2</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="deck3CheckBox">
+          <property name="text">
+           <string>Deck 3</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="deck4CheckBox">
+          <property name="text">
+           <string>Deck 4</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="decksSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+
+      <item row="2" column="0">
+       <widget class="QLabel" name="bandwidthLabel">
+        <property name="text">
+         <string>Bandwidth</string>
+        </property>
+        <property name="buddy">
+         <cstring>bandwidthComboBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="bandwidthComboBox">
+        <property name="toolTip">
+         <string>Highest frequency the separation models see. The wider band costs more CPU.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>16 kHz</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>22 kHz</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+
+      <item row="3" column="0">
+       <widget class="QLabel" name="threadsLabel">
+        <property name="text">
+         <string>Separation threads</string>
+        </property>
+        <property name="buddy">
+         <cstring>threadsSpinBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QSpinBox" name="threadsSpinBox">
+        <property name="toolTip">
+         <string>CPU threads the separation may use. Leave at one where audio dropouts are a concern.</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>16</number>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+
+      <item row="4" column="0">
+       <widget class="QLabel" name="modelDirLabel">
+        <property name="text">
+         <string>Model directory</string>
+        </property>
+        <property name="buddy">
+         <cstring>modelDirLineEdit</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1" colspan="2">
+       <layout class="QHBoxLayout" name="modelDirLayout">
+        <item>
+         <widget class="QLineEdit" name="modelDirLineEdit">
+          <property name="toolTip">
+           <string>Directory holding one subdirectory of ONNX models per stem count.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="browseModelDirButton">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item row="5" column="0" colspan="3">
+       <widget class="QLabel" name="restartHintLabel">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Changes to stems, bandwidth, threads and the model directory take effect after restarting Mixxx. Deck and cache settings apply to the next track loaded.</string>
+        </property>
+       </widget>
+      </item>
+
+
+     </layout>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QGroupBox" name="CacheGroup">
+     <property name="title">
+      <string>Stem Cache</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+     </property>
+     <layout class="QGridLayout" name="CacheLayout">
+
+      <item row="0" column="0" colspan="3">
+       <widget class="QCheckBox" name="cacheCheckBox">
+        <property name="toolTip">
+         <string>Keep separated stems on disk so a track loads with its stems ready. Applies to the next track loaded.</string>
+        </property>
+        <property name="text">
+         <string>Keep separated stems on disk</string>
+        </property>
+       </widget>
+      </item>
+
+      <item row="1" column="0">
+       <widget class="QLabel" name="cacheSizeLabel">
+        <property name="text">
+         <string>Maximum size</string>
+        </property>
+        <property name="buddy">
+         <cstring>cacheSizeSpinBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="cacheSizeSpinBox">
+        <property name="toolTip">
+         <string>Separated stems are kept on disk so a track loads with its stems ready. The least recently used tracks are removed once the cache exceeds this size.</string>
+        </property>
+        <property name="suffix">
+         <string> GB</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>2000</number>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>100</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+
+      <item row="2" column="0">
+       <widget class="QLabel" name="cacheUsageTitleLabel">
+        <property name="text">
+         <string>In use</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="cacheUsageLabel">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QPushButton" name="clearCacheButton">
+        <property name="text">
+         <string>Clear cache</string>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <spacer name="cacheSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </spacer>
+      </item>
+
+     </layout>
+    </widget>
+   </item>
+
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>1</verstretch>
+      </sizepolicy>
+     </property>
+    </spacer>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
