@@ -68,7 +68,12 @@ void DlgPrefStems::slotApply() {
                 deckCheckBoxes()[i]->isChecked());
     }
     m_pConfig->setValue(ConfigKey(kGroup, "threads"), threadsSpinBox->value());
-    m_pConfig->setValue(ConfigKey(kGroup, "model_dir"), modelDirLineEdit->text());
+    // The default follows the settings directory; only a chosen path is stored
+    if (modelDirLineEdit->text() == mixxx::stemconfig::defaultModelDirectory(m_pConfig)) {
+        m_pConfig->remove(ConfigKey(kGroup, "model_dir"));
+    } else {
+        m_pConfig->setValue(ConfigKey(kGroup, "model_dir"), modelDirLineEdit->text());
+    }
     m_pConfig->setValue(ConfigKey(kGroup, "cache"), cacheCheckBox->isChecked());
     m_pConfig->setValue(ConfigKey(kGroup, "cache_max_mb"), cacheSizeSpinBox->value() * 1024);
 }
