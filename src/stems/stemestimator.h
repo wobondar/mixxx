@@ -47,11 +47,15 @@ inline QString cacheDirectory(const UserSettingsPointer& pConfig) {
 } // namespace stemconfig
 
 /// Stems presented to the user for a stems mode. Model stems are folded
-/// into these through `fold` (model stem name to presented index).
+/// into these through `fold` (model stem name to presented index). Each
+/// presented stem sits in an engine stem slot; a stem keeps its slot across
+/// modes so pads, knobs and colours stay put, and a mode with fewer stems
+/// leaves slots empty.
 struct StemPresentation {
     int numStems = 0;
     QStringList names;
     QList<QColor> colors;
+    std::vector<int> stemSlots;
     std::map<QString, int> fold;
     QString modelSubdir;
 };

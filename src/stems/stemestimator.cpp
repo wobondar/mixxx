@@ -51,6 +51,7 @@ StemPresentation presentationForMode(int mode) {
         p.numStems = 2;
         p.names = {QStringLiteral("Instrumental"), QStringLiteral("Vocals")};
         p.colors = {QColor("#CC79A7"), QColor("#56B4E9")};
+        p.stemSlots = {2, 3};
         p.fold = {{QStringLiteral("accompaniment"), 0}, {QStringLiteral("vocals"), 1}};
         p.modelSubdir = QStringLiteral("spleeter-2stems");
         break;
@@ -58,6 +59,7 @@ StemPresentation presentationForMode(int mode) {
         p.numStems = 3;
         p.names = {QStringLiteral("Drums"), QStringLiteral("Music"), QStringLiteral("Vocals")};
         p.colors = {QColor("#009E73"), QColor("#CC79A7"), QColor("#56B4E9")};
+        p.stemSlots = {0, 2, 3};
         p.fold = {{QStringLiteral("drums"), 0},
                 {QStringLiteral("bass"), 1},
                 {QStringLiteral("other"), 1},
@@ -71,6 +73,7 @@ StemPresentation presentationForMode(int mode) {
                 QStringLiteral("Other"),
                 QStringLiteral("Vocals")};
         p.colors = {QColor("#009E73"), QColor("#D55E00"), QColor("#CC79A7"), QColor("#56B4E9")};
+        p.stemSlots = {0, 1, 2, 3};
         p.fold = {{QStringLiteral("drums"), 0},
                 {QStringLiteral("bass"), 1},
                 {QStringLiteral("other"), 2},
@@ -179,7 +182,7 @@ StemTrackPointer StemEstimator::requestTrack(
     auto pJob = std::make_shared<Job>();
     pJob->pTrack = pTrack;
     pJob->pStemTrack = std::make_shared<StemTrack>(
-            numFrames, m_presentation.numStems, sampleRate, rmsEnvelope);
+            numFrames, m_presentation.stemSlots, sampleRate, rmsEnvelope);
     for (const QString& name : m_pProcessor->stemNames()) {
         pJob->fold.push_back(m_presentation.fold.at(name));
     }

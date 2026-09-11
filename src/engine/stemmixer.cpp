@@ -47,11 +47,13 @@ bool StemMixer::isPlayheadReady(int regions) const {
 }
 
 bool StemMixer::isActive() const {
-    if (!hasTrack()) {
+    mixxx::StemTrack* pTrack = m_pTrack.load(std::memory_order_acquire);
+    if (!pTrack) {
         return false;
     }
-    for (float gain : m_targetGain) {
-        if (std::fabs(gain - 1.0f) > kUnityTolerance) {
+    const int numStems = pTrack->numStems();
+    for (int k = 0; k < numStems; ++k) {
+        if (std::fabs(m_targetGain[pTrack->slotOf(k)] - 1.0f) > kUnityTolerance) {
             return true;
         }
     }
@@ -69,10 +71,16 @@ void StemMixer::apply(CSAMPLE* pBuffer,
         return;
     }
     const int numStems = pTrack->numStems();
+    // Gains arrive per engine slot; the stems are stored densely.
+    std::array<float, kMaxStems> target;
+    std::array<float, kMaxStems> gain;
     bool unity = true;
     for (int k = 0; k < numStems; ++k) {
-        if (std::fabs(m_targetGain[k] - 1.0f) > kUnityTolerance ||
-                std::fabs(m_currentGain[k] - 1.0f) > kUnityTolerance) {
+        const int slot = pTrack->slotOf(k);
+        target[k] = m_targetGain[slot];
+        gain[k] = m_currentGain[slot];
+        if (std::fabs(target[k] - 1.0f) > kUnityTolerance ||
+                std::fabs(gain[k] - 1.0f) > kUnityTolerance) {
             unity = false;
         }
     }
@@ -85,9 +93,8 @@ void StemMixer::apply(CSAMPLE* pBuffer,
     const SINT firstFrame = startSample / channelCount;
     std::array<float, kMaxStems> step;
     for (int k = 0; k < numStems; ++k) {
-        step[k] = (m_targetGain[k] - m_currentGain[k]) / static_cast<float>(numFrames);
+        step[k] = (target[k] - gain[k]) / static_cast<float>(numFrames);
     }
-    std::array<float, kMaxStems> gain = m_currentGain;
     for (SINT i = 0; i < numFrames; ++i) {
         for (int k = 0; k < numStems; ++k) {
             gain[k] += step[k];

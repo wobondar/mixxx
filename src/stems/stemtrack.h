@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "util/types.h"
 
@@ -27,6 +28,10 @@ namespace mixxx {
 /// sees a region done sees its bytes too. Undone regions read as zero. The
 /// bytes are atomic because a visual frame on a region boundary is written
 /// again when the neighbouring region finishes, after readers may have it.
+///
+/// Stems are stored densely but addressed by the deck through engine stem
+/// slots, so a stem keeps its slot across modes with fewer stems; the
+/// constructor takes the slot of each stored stem.
 class StemTrack {
   public:
     static constexpr SINT kRegionFrames = 512 * 1024;
@@ -34,19 +39,21 @@ class StemTrack {
     static constexpr SINT kRegionOffset = 4096;
     /// The waveform analyzer's visual sample rate.
     static constexpr int kVisualSampleRate = 441;
+    static constexpr int kNoStem = -1;
 
-    StemTrack(SINT numFrames, int numStems, int sampleRate, bool rmsEnvelope)
+    StemTrack(SINT numFrames, std::vector<int> stemSlots, int sampleRate, bool rmsEnvelope)
             : m_numFrames(numFrames),
-              m_numStems(numStems),
+              m_slots(std::move(stemSlots)),
+              m_numStems(static_cast<int>(m_slots.size())),
               m_numRegions(regionOf(numFrames - 1) + 1),
               m_visualRatio(sampleRate > kVisualSampleRate
                               ? static_cast<double>(sampleRate) / kVisualSampleRate
                               : 1.0),
               m_numVisualFrames(static_cast<SINT>(numFrames / m_visualRatio) + 1),
               m_rmsEnvelope(rmsEnvelope),
-              m_data(new int16_t[static_cast<size_t>(numFrames) * numStems * 2]),
+              m_data(new int16_t[static_cast<size_t>(numFrames) * m_numStems * 2]),
               m_visual(new std::atomic<uint8_t>[static_cast<size_t>(m_numVisualFrames) *
-                      numStems * 2]()),
+                      m_numStems * 2]()),
               m_regionDone(new std::atomic<uint8_t>[m_numRegions]),
               m_wantedFrame(0) {
         for (SINT i = 0; i < m_numRegions; ++i) {
@@ -75,6 +82,18 @@ class StemTrack {
     }
     int numStems() const {
         return m_numStems;
+    }
+    int slotOf(int stem) const {
+        return m_slots[stem];
+    }
+    /// Stored stem index of an engine slot, kNoStem for an empty slot.
+    int stemOfSlot(int slot) const {
+        for (int stem = 0; stem < m_numStems; ++stem) {
+            if (m_slots[stem] == slot) {
+                return stem;
+            }
+        }
+        return kNoStem;
     }
     SINT numRegions() const {
         return m_numRegions;
@@ -175,6 +194,7 @@ class StemTrack {
     }
 
     const SINT m_numFrames;
+    const std::vector<int> m_slots;
     const int m_numStems;
     const SINT m_numRegions;
     const double m_visualRatio;

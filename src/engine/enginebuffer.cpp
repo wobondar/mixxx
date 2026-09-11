@@ -617,13 +617,16 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
                     static_cast<int>(trackSampleRate.value()));
         }
         // Widgets take stem names and colours from the track, the same way
-        // they do for native stem files. The track object is shared between
+        // they do for native stem files, indexed by engine slot; an empty
+        // slot carries an invalid entry. The track object is shared between
         // decks, so a deck without separation clears what another deck set.
         QList<StemInfo> stemInfo;
         if (m_pStemTrack) {
             const auto& presentation = pEstimator->presentation();
+            stemInfo.resize(mixxx::kMaxSupportedStems);
             for (int i = 0; i < presentation.numStems; ++i) {
-                stemInfo.append(StemInfo(presentation.names[i], presentation.colors[i]));
+                stemInfo[presentation.stemSlots[i]] =
+                        StemInfo(presentation.names[i], presentation.colors[i]);
             }
         }
         pTrack->setLiveStemInfo(stemInfo);

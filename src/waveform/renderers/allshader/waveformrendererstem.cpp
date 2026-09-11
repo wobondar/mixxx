@@ -155,9 +155,10 @@ bool WaveformRendererStem::preprocessInner() {
 #endif
     const auto* pColors = m_waveformRenderer->getWaveformSignalColors();
     float stemColors[mixxx::kMaxSupportedStems][4] = {};
-    for (int stemIdx = 0; stemIdx < std::min<int>(numStems, mixxx::kMaxSupportedStems); ++stemIdx) {
+    for (int stemIdx = 0; stemIdx < std::min<int>(stemInfo.size(), mixxx::kMaxSupportedStems);
+            ++stemIdx) {
         QColor color = pColors->getStemColor(stemIdx);
-        if (!color.isValid() && stemIdx < stemInfo.size()) {
+        if (!color.isValid()) {
             color = stemInfo[stemIdx].getColor();
         }
         stemColors[stemIdx][0] = static_cast<float>(color.redF());
@@ -245,12 +246,22 @@ bool WaveformRendererStem::preprocessInner() {
 #endif
         int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
+#ifdef __LIVE_STEMS__
+            const int liveStem = useLive ? live.pStemTrack->stemOfSlot(stemIdx)
+                                         : mixxx::StemTrack::kNoStem;
+            const bool slotFilled = useLive ? liveStem != mixxx::StemTrack::kNoStem
+                                            : stemIdx < numStems;
+            const int laneIdx = useLive ? liveStem : stemIdx;
+#else
+            const bool slotFilled = stemIdx < numStems;
+            const int laneIdx = stemIdx;
+#endif
             // Stem is drawn twice with different opacity level, this allow to
             // see the maximum signal by transparency
             for (int layerIdx = 0; layerIdx < 2; layerIdx++) {
                 // The vertex count is fixed per column, so a stem or column
                 // with nothing to show still emits its rectangle, at zero height.
-                const bool present = columnReady && stemIdx < numStems;
+                const bool present = columnReady && slotFilled;
                 const float color_r = stemColors[stemIdx][0];
                 const float color_g = stemColors[stemIdx][1];
                 const float color_b = stemColors[stemIdx][2];
@@ -266,7 +277,7 @@ bool WaveformRendererStem::preprocessInner() {
                         if (useLive) {
                             for (SINT liveFrame = liveStart; liveFrame < liveStop; ++liveFrame) {
                                 u8max = math_max(u8max,
-                                        live.pStemTrack->visualData(liveFrame)[stemIdx * 2 + chn]
+                                        live.pStemTrack->visualData(liveFrame)[liveStem * 2 + chn]
                                                 .load(std::memory_order_relaxed));
                             }
                             continue;
@@ -306,7 +317,7 @@ bool WaveformRendererStem::preprocessInner() {
                 if (m_splitStemTracks) {
                     height = std::min(height, halfBreadth);
                 }
-                const int yIndex = m_splitStemTracks ? stemIdx : stemLayer;
+                const int yIndex = m_splitStemTracks ? std::max(0, laneIdx) : stemLayer;
                 vertexUpdater.addRectangle(
                         {fVisualIdx - halfStripSize,
                                 yIndex * stemBreadth + halfBreadth - height},

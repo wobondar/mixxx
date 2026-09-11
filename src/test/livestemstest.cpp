@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 
+#include "engine/stemmixer.h"
 #include "sources/soundsourceproxy.h"
 #include "stems/spleeterprocessor.h"
 #include "stems/stemtrack.h"
@@ -99,7 +100,7 @@ class LiveStemsTest : public MixxxTest, SoundSourceProviderRegistration {
 };
 
 TEST_F(LiveStemsTest, MatchesPythonReference) {
-    mixxx::StemTrack track(m_numFrames, 4, 44100, false);
+    mixxx::StemTrack track(m_numFrames, {0, 1, 2, 3}, 44100, false);
     mixxx::SpleeterProcessor::Run run;
     m_pProcessor->beginRun(&run);
     const auto reader = [this](SINT frame, SINT numFrames, float* out) {
@@ -120,8 +121,8 @@ TEST_F(LiveStemsTest, MatchesPythonReference) {
 }
 
 TEST_F(LiveStemsTest, RestartMidTrackMatchesFullRun) {
-    mixxx::StemTrack full(m_numFrames, 4, 44100, false);
-    mixxx::StemTrack partial(m_numFrames, 4, 44100, false);
+    mixxx::StemTrack full(m_numFrames, {0, 1, 2, 3}, 44100, false);
+    mixxx::StemTrack partial(m_numFrames, {0, 1, 2, 3}, 44100, false);
     const auto reader = [this](SINT frame, SINT numFrames, float* out) {
         readMix(frame, numFrames, out);
     };
@@ -161,7 +162,7 @@ void fillSine(mixxx::StemTrack* pTrack, int stem, SINT numFrames, double radPerF
 
 TEST(StemTrackVisualTest, PeakBytesFollowRegionFlags) {
     const SINT numFrames = mixxx::StemTrack::kRegionFrames + 5000;
-    mixxx::StemTrack track(numFrames, 4, 44100, false);
+    mixxx::StemTrack track(numFrames, {0, 1, 2, 3}, 44100, false);
     EXPECT_DOUBLE_EQ(track.visualRatio(), 100.0);
     EXPECT_EQ(track.numVisualFrames(), numFrames / 100 + 1);
     // Half a period fits in one stride, so every stride holds a peak sample
@@ -183,13 +184,44 @@ TEST(StemTrackVisualTest, PeakBytesFollowRegionFlags) {
 
 TEST(StemTrackVisualTest, RmsBytesMatchPeakForASine) {
     const SINT numFrames = 20000;
-    mixxx::StemTrack track(numFrames, 4, 48000, true);
+    mixxx::StemTrack track(numFrames, {0, 1, 2, 3}, 48000, true);
     // Many periods per stride so the stride's mean square sits at one half
     fillSine(&track, 0, numFrames, 0.5);
     track.markRegionDone(0);
     const auto* bytes = track.visualData(track.visualFrameOf(10000));
     EXPECT_NEAR(bytes[0].load(), 255, 4);
     EXPECT_EQ(bytes[2].load(), 0);
+}
+
+TEST(StemMixerSlotTest, GainsReachStemsBySlot) {
+    const SINT numFrames = 1000;
+    mixxx::StemTrack track(numFrames, {0, 2, 3}, 44100, false);
+    EXPECT_EQ(track.stemOfSlot(1), mixxx::StemTrack::kNoStem);
+    EXPECT_EQ(track.stemOfSlot(3), 2);
+    for (SINT f = 0; f < numFrames; ++f) {
+        int16_t* data = track.frameData(f);
+        for (int stem = 0; stem < track.numStems(); ++stem) {
+            data[stem * 2] = static_cast<int16_t>(1000 * (stem + 1));
+            data[stem * 2 + 1] = data[stem * 2];
+        }
+    }
+    track.markRegionDone(0);
+
+    StemMixer mixer;
+    mixer.setTrack(&track);
+    std::vector<CSAMPLE> buffer(2 * 64, 0.0f);
+    const auto stereo = mixxx::audio::ChannelCount::stereo();
+
+    mixer.setGain(1, 0.0f);
+    EXPECT_FALSE(mixer.isActive());
+    mixer.apply(buffer.data(), 0, static_cast<SINT>(buffer.size()), false, stereo);
+    EXPECT_FLOAT_EQ(buffer[2 * 63], 0.0f);
+
+    mixer.setGain(1, 1.0f);
+    mixer.setGain(3, 0.0f);
+    EXPECT_TRUE(mixer.isActive());
+    mixer.apply(buffer.data(), 0, static_cast<SINT>(buffer.size()), false, stereo);
+    EXPECT_NEAR(buffer[2 * 63], -3000.0f / 32767.0f, 1e-4f);
 }
 
 } // namespace

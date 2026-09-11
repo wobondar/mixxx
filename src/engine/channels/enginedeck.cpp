@@ -1,6 +1,7 @@
 #include "engine/channels/enginedeck.h"
 
 #include <QStringView>
+#include <algorithm>
 
 #include "control/controlpushbutton.h"
 #include "effects/effectsmanager.h"
@@ -113,7 +114,12 @@ void EngineDeck::slotTrackLoaded(TrackPointer pNewTrack,
     }
     m_stemClonedState = false;
     if (pNewTrack) {
-        int stemCount = pNewTrack->getStemInfo().size();
+        // Live stems leave slots empty in modes with fewer stems
+        const auto stemInfo = pNewTrack->getStemInfo();
+        const int stemCount = static_cast<int>(std::count_if(
+                stemInfo.cbegin(), stemInfo.cend(), [](const StemInfo& info) {
+                    return info.isValid();
+                }));
         m_pStemCount->forceSet(stemCount);
     } else {
         m_pStemCount->forceSet(0);
