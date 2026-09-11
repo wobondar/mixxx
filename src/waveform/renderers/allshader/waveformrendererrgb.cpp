@@ -84,6 +84,10 @@ bool WaveformRendererRGB::preprocessInner() {
         return false;
     }
 #endif
+#ifdef __LIVE_STEMS__
+    const LiveStems live = liveStems();
+    const double audioVisualRatio = waveform->getAudioVisualRatio();
+#endif
 
     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
     const int length = static_cast<int>(m_waveformRenderer->getLength());
@@ -165,6 +169,13 @@ bool WaveformRendererRGB::preprocessInner() {
                 std::min(std::max(visualFrameStop, visualFrameStart + 1) * 2, dataSize - 1);
 
         const float fpos = static_cast<float>(pos) * invDevicePixelRatio;
+#ifdef __LIVE_STEMS__
+        float liveHeight = 1.0f;
+        float liveColor = 1.0f;
+        live.columnFactors(static_cast<SINT>(xVisualFrame * audioVisualRatio),
+                &liveHeight,
+                &liveColor);
+#endif
 
         // Per band: max over the frames under this pixel drives the height,
         // mean over the same frames drives the colour. Using the max for
@@ -288,6 +299,12 @@ bool WaveformRendererRGB::preprocessInner() {
                     blue *= normFactor;
                 }
             }
+#ifdef __LIVE_STEMS__
+            red *= liveColor;
+            green *= liveColor;
+            blue *= liveColor;
+            maxAllChn[chn] *= liveHeight;
+#endif
 
             // Lines are thin rectangles
             if (!splitLeftRight) {

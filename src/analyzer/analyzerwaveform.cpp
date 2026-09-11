@@ -121,7 +121,9 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
     ConstWaveformPointer pLoadedTrackWaveform;
     ConstWaveformPointer pLoadedTrackWaveformSummary;
 #ifdef __STEM__
-    bool isStemTrack = !pTrack->getStemInfo().isEmpty();
+    // The file's own stems only: stems separated at runtime never reach the
+    // analyzer, so counting them would regenerate the waveform on every load.
+    const bool isStemTrack = pTrack->hasStem();
 #endif
 
     TrackId trackId = pTrack->getId();

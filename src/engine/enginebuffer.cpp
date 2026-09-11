@@ -603,13 +603,18 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
     m_pStemMixer->setTrack(nullptr);
     m_pPreviousStemTrack = std::move(m_pStemTrack);
     auto* pEstimator = mixxx::StemEstimator::instance();
+    if (pEstimator) {
+        pEstimator->releaseTrack(getGroup());
+    }
     // A file with a stem atom plays through the native stem path and never
     // reaches here as stereo; anything else is a candidate for separation.
     if (pEstimator && m_channelCount == mixxx::audio::ChannelCount::stereo() &&
             !mixxx::StemInfoImporter::hasStemAtom(pTrack->getLocation())) {
         if (pEstimator->isDeckEnabled(getGroup())) {
-            m_pStemTrack = pEstimator->requestTrack(
-                    getGroup(), pTrack, static_cast<SINT>(trackNumFrame.value()));
+            m_pStemTrack = pEstimator->requestTrack(getGroup(),
+                    pTrack,
+                    static_cast<SINT>(trackNumFrame.value()),
+                    static_cast<int>(trackSampleRate.value()));
         }
         // Widgets take stem names and colours from the track, the same way
         // they do for native stem files. The track object is shared between

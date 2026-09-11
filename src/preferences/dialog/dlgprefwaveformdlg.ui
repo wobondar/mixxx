@@ -813,6 +813,79 @@ Select from different types of displays for the waveform, which differ primarily
          </property>
         </widget>
        </item>
+
+       <item row="3" column="0">
+        <widget class="QLabel" name="liveStemViewLabel">
+         <property name="text">
+          <string>Stem waveform</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>liveStemViewComboBox</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="liveStemUnseparatedLabel">
+         <property name="text">
+          <string>Not yet separated</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>liveStemUnseparatedComboBox</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="2">
+        <widget class="QLabel" name="liveStemUnseparatedOpacityLabel">
+         <property name="text">
+          <string>Dim opacity</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>liveStemUnseparatedOpacitySpinBox</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QComboBox" name="liveStemViewComboBox">
+         <property name="toolTip">
+          <string>When a deck with separated stems shows them instead of the normal waveform</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QComboBox" name="liveStemUnseparatedComboBox">
+         <property name="toolTip">
+          <string>What the stem waveform shows in the part of the track that is not separated yet</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="2">
+        <widget class="QDoubleSpinBox" name="liveStemUnseparatedOpacitySpinBox">
+         <property name="toolTip">
+          <string>Opacity of the dimmed waveform in the part that is not separated yet</string>
+         </property>
+         <property name="decimals">
+          <number>2</number>
+         </property>
+         <property name="minimum">
+          <double>0.000000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.050000000000000</double>
+         </property>
+        </widget>
+       </item>
       </layout>
      </item>
 

@@ -60,6 +60,10 @@ bool WaveformRendererFiltered::preprocessInner() {
         return false;
     }
 #endif
+#ifdef __LIVE_STEMS__
+    const LiveStems live = liveStems();
+    const double audioVisualRatio = waveform->getAudioVisualRatio();
+#endif
 
     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
     const int length = static_cast<int>(m_waveformRenderer->getLength());
@@ -173,16 +177,24 @@ bool WaveformRendererFiltered::preprocessInner() {
         // + one for the horizontal axis, and uniform color materials,
         // instead of passing constant color as vertex.
 
+        float liveHeight = 1.0f;
+        float liveColor = 1.0f;
+#ifdef __LIVE_STEMS__
+        live.columnFactors(static_cast<SINT>(xVisualFrame * audioVisualRatio),
+                &liveHeight,
+                &liveColor);
+#endif
+
         for (int bandIndex = 0; bandIndex < 3; bandIndex++) {
-            max[bandIndex][0] *= bandGain[bandIndex];
-            max[bandIndex][1] *= bandGain[bandIndex];
+            max[bandIndex][0] *= bandGain[bandIndex] * liveHeight;
+            max[bandIndex][1] *= bandGain[bandIndex] * liveHeight;
 
             vertexUpdater[bandIndex].addRectangle(
                     {fpos - halfPixelSize,
                             halfBreadth - heightFactor * max[bandIndex][0]},
                     {fpos + halfPixelSize,
                             halfBreadth + heightFactor * max[bandIndex][1]},
-                    {rgb[bandIndex]});
+                    {rgb[bandIndex] * liveColor});
         }
 
         xVisualFrame += visualIncrementPerPixel;

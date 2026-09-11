@@ -58,6 +58,10 @@ bool WaveformRendererHSV::preprocessInner() {
         return false;
     }
 #endif
+#ifdef __LIVE_STEMS__
+    const LiveStems live = liveStems();
+    const double audioVisualRatio = waveform->getAudioVisualRatio();
+#endif
 
     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
     const int length = static_cast<int>(m_waveformRenderer->getLength());
@@ -187,15 +191,24 @@ bool WaveformRendererHSV::preprocessInner() {
         QColor color;
         color.setHsvF(h, 1.0f - hi, 1.0f - lo);
 
+        float liveHeight = 1.0f;
+        float liveColor = 1.0f;
+#ifdef __LIVE_STEMS__
+        live.columnFactors(static_cast<SINT>(xVisualFrame * audioVisualRatio),
+                &liveHeight,
+                &liveColor);
+#endif
+
         // Lines are thin rectangles
         // maxAll[0] is for left channel, maxAll[1] is for right channel
-        vertexUpdater.addRectangle({fpos - halfPixelSize,
-                                           halfBreadth - heightFactor * eqGain[0] * maxAll[0]},
+        vertexUpdater.addRectangle(
+                {fpos - halfPixelSize,
+                        halfBreadth - heightFactor * eqGain[0] * maxAll[0] * liveHeight},
                 {fpos + halfPixelSize,
-                        halfBreadth + heightFactor * eqGain[1] * maxAll[1]},
-                {static_cast<float>(color.redF()),
-                        static_cast<float>(color.greenF()),
-                        static_cast<float>(color.blueF())});
+                        halfBreadth + heightFactor * eqGain[1] * maxAll[1] * liveHeight},
+                {static_cast<float>(color.redF()) * liveColor,
+                        static_cast<float>(color.greenF()) * liveColor,
+                        static_cast<float>(color.blueF()) * liveColor});
 
         xVisualFrame += visualIncrementPerPixel;
     }

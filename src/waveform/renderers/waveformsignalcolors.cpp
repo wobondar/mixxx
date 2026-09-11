@@ -69,6 +69,13 @@ bool WaveformSignalColors::setup(const QDomNode &node, const SkinContext& contex
     }
     m_rgbHighFilteredColor = WSkinColor::getCorrectColor(m_rgbHighFilteredColor).toRgb();
 
+#ifdef __STEM__
+    for (int i = 0; i < mixxx::kMaxSupportedStems; ++i) {
+        QColor color(context.selectString(node, QStringLiteral("StemColor%1").arg(i + 1)));
+        m_stemColors[i] = color.isValid() ? WSkinColor::getCorrectColor(color).toRgb() : QColor();
+    }
+#endif
+
     m_axesColor = context.selectColor(node, "AxesColor");
     if (!m_axesColor.isValid()) {
         m_axesColor = QColor(245,245,245);

@@ -58,6 +58,10 @@ bool WaveformRendererSimple::preprocessInner() {
         return false;
     }
 #endif
+#ifdef __LIVE_STEMS__
+    const LiveStems live = liveStems();
+    const double audioVisualRatio = waveform->getAudioVisualRatio();
+#endif
 
     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
     const int length = static_cast<int>(m_waveformRenderer->getLength());
@@ -138,6 +142,17 @@ bool WaveformRendererSimple::preprocessInner() {
             }
         }
         float maxAllChn[2]{static_cast<float>(u8maxAllChn[0]), static_cast<float>(u8maxAllChn[1])};
+        QVector3D columnColor = signalColor;
+#ifdef __LIVE_STEMS__
+        float liveHeight = 1.0f;
+        float liveColor = 1.0f;
+        live.columnFactors(static_cast<SINT>(xVisualFrame * audioVisualRatio),
+                &liveHeight,
+                &liveColor);
+        maxAllChn[0] *= liveHeight;
+        maxAllChn[1] *= liveHeight;
+        columnColor *= liveColor;
+#endif
 
         // TODO: use two geometrynodes, with uniform material,
         // one for the axis, one for the signal
@@ -148,7 +163,7 @@ bool WaveformRendererSimple::preprocessInner() {
                                            halfBreadth - heightFactor * maxAllChn[0]},
                 {fpos + halfPixelSize,
                         halfBreadth + heightFactor * maxAllChn[0]},
-                signalColor);
+                columnColor);
 
         xVisualFrame += visualIncrementPerPixel;
     }

@@ -101,6 +101,13 @@ DlgPrefWaveform::DlgPrefWaveform(
     stemDisplayModeComboBox->addItem(tr("Overlapping"));
     stemDisplayModeComboBox->addItem(tr("Stacked"));
 
+    liveStemViewComboBox->addItem(tr("Never"));
+    liveStemViewComboBox->addItem(tr("As soon as separated"));
+    liveStemViewComboBox->addItem(tr("When a stem is muted or turned down"));
+    liveStemUnseparatedComboBox->addItem(tr("Normal waveform"));
+    liveStemUnseparatedComboBox->addItem(tr("Blank"));
+    liveStemUnseparatedComboBox->addItem(tr("Dimmed waveform"));
+
     envelopeComboBox->addItem(tr("Peak"));
     envelopeComboBox->addItem(tr("RMS"));
 
@@ -288,6 +295,18 @@ DlgPrefWaveform::DlgPrefWaveform(
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
             &DlgPrefWaveform::slotStemDisplayMode);
+    connect(liveStemViewComboBox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &DlgPrefWaveform::slotLiveStemView);
+    connect(liveStemUnseparatedComboBox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &DlgPrefWaveform::slotLiveStemUnseparated);
+    connect(liveStemUnseparatedOpacitySpinBox,
+            &QDoubleSpinBox::valueChanged,
+            this,
+            &DlgPrefWaveform::slotLiveStemUnseparatedOpacity);
 
     setScrollSafeGuardForAllInputWidgets(this);
 }
@@ -392,6 +411,12 @@ void DlgPrefWaveform::slotUpdate() {
     stemOpacitySpinBox->setValue(factory->getStemOpacity());
     stemOutlineOpacitySpinBox->setValue(factory->getStemOutlineOpacity());
     stemDisplayModeComboBox->setCurrentIndex(factory->isStemSplitTracks() ? 1 : 0);
+#ifdef __LIVE_STEMS__
+    liveStemViewComboBox->setCurrentIndex(static_cast<int>(factory->getLiveStemView()));
+    liveStemUnseparatedComboBox->setCurrentIndex(
+            static_cast<int>(factory->getLiveStemUnseparated()));
+    liveStemUnseparatedOpacitySpinBox->setValue(factory->getLiveStemUnseparatedOpacity());
+#endif
 
     OverviewType cfgOverviewType =
             m_pConfig->getValue<OverviewType>(kOverviewTypeCfgKey, OverviewType::RGB);
@@ -507,6 +532,9 @@ void DlgPrefWaveform::slotResetToDefaults() {
     playMarkerPositionSlider->setValue(50);
 
     stemDisplayModeComboBox->setCurrentIndex(0);
+    liveStemViewComboBox->setCurrentIndex(static_cast<int>(LiveStemView::WhenAdjusted));
+    liveStemUnseparatedComboBox->setCurrentIndex(static_cast<int>(LiveStemUnseparated::KeepSignal));
+    liveStemUnseparatedOpacitySpinBox->setValue(0.4);
 }
 
 void DlgPrefWaveform::slotSetFrameRate(int frameRate) {
@@ -717,6 +745,17 @@ void DlgPrefWaveform::updateStemOptionsEnabled() {
     stemOpacitySpinBox->setEnabled(stemsSupported && enabled);
     stemOutlineOpacitySpinBox->setEnabled(stemsSupported && enabled);
     stemDisplayModeComboBox->setEnabled(stemsSupported && enabled);
+#ifdef __LIVE_STEMS__
+    const bool liveStems = stemsSupported && enabled;
+#else
+    const bool liveStems = false;
+#endif
+    liveStemViewLabel->setEnabled(liveStems);
+    liveStemUnseparatedLabel->setEnabled(liveStems);
+    liveStemUnseparatedOpacityLabel->setEnabled(liveStems);
+    liveStemViewComboBox->setEnabled(liveStems);
+    liveStemUnseparatedComboBox->setEnabled(liveStems);
+    liveStemUnseparatedOpacitySpinBox->setEnabled(liveStems);
     requiresGLSLLabel2->setVisible(!stemsSupported && enabled);
 }
 
@@ -870,6 +909,31 @@ void DlgPrefWaveform::slotStemOutlineOpacity(float value) {
 
 void DlgPrefWaveform::slotStemDisplayMode(int index) {
     WaveformWidgetFactory::instance()->setStemSplitTracks(index == 1);
+}
+
+void DlgPrefWaveform::slotLiveStemView(int index) {
+#ifdef __LIVE_STEMS__
+    WaveformWidgetFactory::instance()->setLiveStemView(static_cast<LiveStemView>(index));
+#else
+    Q_UNUSED(index);
+#endif
+}
+
+void DlgPrefWaveform::slotLiveStemUnseparated(int index) {
+#ifdef __LIVE_STEMS__
+    WaveformWidgetFactory::instance()->setLiveStemUnseparated(
+            static_cast<LiveStemUnseparated>(index));
+#else
+    Q_UNUSED(index);
+#endif
+}
+
+void DlgPrefWaveform::slotLiveStemUnseparatedOpacity(double value) {
+#ifdef __LIVE_STEMS__
+    WaveformWidgetFactory::instance()->setLiveStemUnseparatedOpacity(static_cast<float>(value));
+#else
+    Q_UNUSED(value);
+#endif
 }
 
 void DlgPrefWaveform::calculateCachedWaveformDiskUsage() {

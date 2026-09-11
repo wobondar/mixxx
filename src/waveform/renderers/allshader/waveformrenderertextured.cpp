@@ -316,6 +316,13 @@ void WaveformRendererTextured::paintGL() {
         return;
     }
 #endif
+#ifdef __LIVE_STEMS__
+    // Texture columns cannot fade per region, so the whole signal steps back
+    // while the stem view is on.
+    if (liveStems().stemView) {
+        return;
+    }
+#endif
 
     const double trackSamples = m_waveformRenderer->getTrackSamples();
     if (trackSamples <= 0) {

@@ -10,6 +10,7 @@
 #include "skin/legacy/skincontext.h"
 #include "util/performancetimer.h"
 #include "util/singleton.h"
+#include "waveform/livestemview.h"
 #include "waveform/renderers/allshader/waveformrenderersignalbase.h"
 #include "waveform/widgets/waveformwidgettype.h"
 #include "waveform/widgets/waveformwidgetvars.h"
@@ -178,6 +179,20 @@ class WaveformWidgetFactory : public QObject,
     void setStemOutlineOpacity(float value);
     void setStemOpacity(float value);
     void setStemSplitTracks(bool value);
+#ifdef __LIVE_STEMS__
+    void setLiveStemView(LiveStemView value);
+    void setLiveStemUnseparated(LiveStemUnseparated value);
+    void setLiveStemUnseparatedOpacity(float value);
+    LiveStemView getLiveStemView() const {
+        return m_liveStemView;
+    }
+    LiveStemUnseparated getLiveStemUnseparated() const {
+        return m_liveStemUnseparated;
+    }
+    float getLiveStemUnseparatedOpacity() const {
+        return m_liveStemUnseparatedOpacity;
+    }
+#endif
 
     bool getUntilMarkShowBeats() const {
         return m_untilMarkShowBeats;
@@ -306,6 +321,11 @@ class WaveformWidgetFactory : public QObject,
     void stemOutlineOpacityChanged(float value);
     void stemOpacityChanged(float value);
     void stemSplitTracksChanged(bool value);
+#ifdef __LIVE_STEMS__
+    void liveStemViewChanged(LiveStemView value);
+    void liveStemUnseparatedChanged(LiveStemUnseparated value);
+    void liveStemUnseparatedOpacityChanged(float value);
+#endif
 
   public slots:
     void slotSkinLoaded();
@@ -377,6 +397,14 @@ class WaveformWidgetFactory : public QObject,
     float m_stemOpacity;
     bool m_stemSplitTracks;
     std::unique_ptr<ControlObject> m_pStemSplitTracksControl;
+#ifdef __LIVE_STEMS__
+    LiveStemView m_liveStemView;
+    LiveStemUnseparated m_liveStemUnseparated;
+    float m_liveStemUnseparatedOpacity;
+    // Writable, so a skin or mapping can switch the view without the
+    // preferences page.
+    std::unique_ptr<ControlObject> m_pLiveStemViewControl;
+#endif
 
     bool m_openGlAvailable;
     bool m_openGlesAvailable;

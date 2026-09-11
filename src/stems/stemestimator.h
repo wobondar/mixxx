@@ -103,9 +103,13 @@ class StemEstimator : public QObject {
     /// Registers a loaded track for separation and returns the buffer the
     /// deck mixes from. Null when disabled or the track cannot be separated.
     /// Main thread.
-    StemTrackPointer requestTrack(const QString& group, TrackPointer pTrack, SINT numFrames);
+    StemTrackPointer requestTrack(
+            const QString& group, TrackPointer pTrack, SINT numFrames, int sampleRate);
     /// Cancels the deck's job and drops its buffer. Main thread.
     void releaseTrack(const QString& group);
+    /// The buffer a deck currently mixes from, for readers outside the
+    /// engine. Null between releaseTrack and the next request.
+    StemTrackPointer trackForGroup(const QString& group);
 
   private:
     struct Job {
@@ -146,6 +150,8 @@ class StemEstimator : public QObject {
     std::mutex m_mutex;
     std::condition_variable m_wake;
     std::map<QString, std::shared_ptr<Job>> m_jobs;
+    // Jobs leave m_jobs when they finish; a deck's buffer outlives its job.
+    std::map<QString, StemTrackPointer> m_deckTracks;
     std::atomic<bool> m_stop;
     std::thread m_thread;
 };

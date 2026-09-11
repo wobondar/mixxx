@@ -16,6 +16,7 @@
 #include <QStringList>
 #include <QWidget>
 #include <QWindow>
+#include <algorithm>
 
 #include "control/controlobject.h"
 #include "moc_waveformwidgetfactory.cpp"
@@ -143,6 +144,11 @@ WaveformWidgetFactory::WaveformWidgetFactory()
           m_untilMarkTextPointSize(24),
           m_untilMarkTextHeightLimit(toUntilMarkTextHeightLimit(0)),
           m_stemSplitTracks(false),
+#ifdef __LIVE_STEMS__
+          m_liveStemView(LiveStemView::WhenAdjusted),
+          m_liveStemUnseparated(LiveStemUnseparated::KeepSignal),
+          m_liveStemUnseparatedOpacity(0.4f),
+#endif
           m_openGlAvailable(false),
           m_openGlesAvailable(false),
           m_openGLShaderAvailable(false),
@@ -155,6 +161,19 @@ WaveformWidgetFactory::WaveformWidgetFactory()
           m_playMarkerPosition(WaveformWidgetRenderer::s_defaultPlayMarkerPosition) {
     m_pStemSplitTracksControl = std::make_unique<ControlObject>(
             ConfigKey(kWaveformGroup, QStringLiteral("stem_split_tracks")));
+#ifdef __LIVE_STEMS__
+    m_pLiveStemViewControl = std::make_unique<ControlObject>(
+            ConfigKey(kWaveformGroup, QStringLiteral("live_stem_view")));
+    connect(m_pLiveStemViewControl.get(),
+            &ControlObject::valueChanged,
+            this,
+            [this](double value) {
+                const int index = std::clamp(static_cast<int>(value),
+                        static_cast<int>(LiveStemView::Off),
+                        static_cast<int>(LiveStemView::WhenAdjusted));
+                setLiveStemView(static_cast<LiveStemView>(index));
+            });
+#endif
     m_visualGain[AllBand] = kVisualGainDefault[AllBand];
     m_visualGain[Low] = kVisualGainDefault[Low];
     m_visualGain[Mid] = kVisualGainDefault[Mid];
@@ -500,6 +519,21 @@ bool WaveformWidgetFactory::setConfig(UserSettingsPointer config) {
     setStemSplitTracks(m_config->getValue(
             ConfigKey(kWaveformGroup, QStringLiteral("stem_split_tracks")),
             false));
+#ifdef __LIVE_STEMS__
+    setLiveStemView(static_cast<LiveStemView>(std::clamp(
+            m_config->getValue(ConfigKey(kWaveformGroup, QStringLiteral("live_stem_view")),
+                    static_cast<int>(m_liveStemView)),
+            static_cast<int>(LiveStemView::Off),
+            static_cast<int>(LiveStemView::WhenAdjusted))));
+    setLiveStemUnseparated(static_cast<LiveStemUnseparated>(std::clamp(
+            m_config->getValue(ConfigKey(kWaveformGroup, QStringLiteral("live_stem_unseparated")),
+                    static_cast<int>(m_liveStemUnseparated)),
+            static_cast<int>(LiveStemUnseparated::KeepSignal),
+            static_cast<int>(LiveStemUnseparated::DimSignal))));
+    setLiveStemUnseparatedOpacity(static_cast<float>(m_config->getValue(
+            ConfigKey(kWaveformGroup, QStringLiteral("live_stem_unseparated_opacity")),
+            static_cast<double>(m_liveStemUnseparatedOpacity))));
+#endif
 
     return true;
 }
@@ -1585,6 +1619,37 @@ void WaveformWidgetFactory::setStemSplitTracks(bool value) {
     m_pStemSplitTracksControl->set(value ? 1.0 : 0.0);
     emit stemSplitTracksChanged(value);
 }
+
+#ifdef __LIVE_STEMS__
+void WaveformWidgetFactory::setLiveStemView(LiveStemView value) {
+    m_liveStemView = value;
+    if (m_config) {
+        m_config->setValue(ConfigKey(kWaveformGroup, QStringLiteral("live_stem_view")),
+                static_cast<int>(value));
+    }
+    m_pLiveStemViewControl->set(static_cast<double>(value));
+    emit liveStemViewChanged(value);
+}
+
+void WaveformWidgetFactory::setLiveStemUnseparated(LiveStemUnseparated value) {
+    m_liveStemUnseparated = value;
+    if (m_config) {
+        m_config->setValue(ConfigKey(kWaveformGroup, QStringLiteral("live_stem_unseparated")),
+                static_cast<int>(value));
+    }
+    emit liveStemUnseparatedChanged(value);
+}
+
+void WaveformWidgetFactory::setLiveStemUnseparatedOpacity(float value) {
+    m_liveStemUnseparatedOpacity = std::clamp(value, 0.0f, 1.0f);
+    if (m_config) {
+        m_config->setValue(
+                ConfigKey(kWaveformGroup, QStringLiteral("live_stem_unseparated_opacity")),
+                static_cast<double>(m_liveStemUnseparatedOpacity));
+    }
+    emit liveStemUnseparatedOpacityChanged(m_liveStemUnseparatedOpacity);
+}
+#endif
 
 // static
 Qt::Alignment WaveformWidgetFactory::toUntilMarkAlign(int index) {

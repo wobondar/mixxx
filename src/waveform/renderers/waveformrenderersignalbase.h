@@ -5,6 +5,10 @@
 #include "util/types.h"
 #include "waveform/waveform.h"
 #include "waveformrendererabstract.h"
+#ifdef __LIVE_STEMS__
+#include "stems/stemtrack.h"
+#include "waveform/livestemview.h"
+#endif
 
 class ControlProxy;
 class WaveformSignalColors;
@@ -55,6 +59,22 @@ class WaveformRendererSignalBase : public QObject, public WaveformRendererAbstra
             float* pLowGain,
             float* pMidGain,
             float* highGain);
+
+#ifdef __LIVE_STEMS__
+    struct LiveStems {
+        mixxx::StemTrackPointer pStemTrack;
+        // True while the stem renderer draws; the signal renderers stand
+        // back from its done regions.
+        bool stemView = false;
+        LiveStemUnseparated unseparated = LiveStemUnseparated::KeepSignal;
+        float unseparatedOpacity = 1.0f;
+        // Height and colour factors a signal renderer applies to the column
+        // holding this audio frame.
+        void columnFactors(SINT frame, float* pHeight, float* pColor) const;
+    };
+    LiveStems liveStems() const;
+    std::unique_ptr<ControlProxy> m_pStemsActive;
+#endif
 
   protected:
     std::unique_ptr<ControlProxy> m_pEQEnabled;

@@ -2,6 +2,9 @@
 
 #include "control/controlproxy.h"
 #include "moc_waveformrenderersignalbase.cpp"
+#ifdef __LIVE_STEMS__
+#include "stems/stemestimator.h"
+#endif
 #include "util/colorcomponents.h"
 #include "waveform/waveform.h"
 #include "waveform/waveformwidgetfactory.h"
@@ -79,9 +82,64 @@ bool WaveformRendererSignalBase::init() {
             effectGroup, QStringLiteral("button_parameter2"));
     m_pHighKillControlObject = std::make_unique<ControlProxy>(
             effectGroup, QStringLiteral("button_parameter3"));
+#ifdef __LIVE_STEMS__
+    m_pStemsActive = std::make_unique<ControlProxy>(
+            m_waveformRenderer->getGroup(), QStringLiteral("stems_active"));
+#endif
 
     return onInit();
 }
+
+#ifdef __LIVE_STEMS__
+WaveformRendererSignalBase::LiveStems WaveformRendererSignalBase::liveStems() const {
+    LiveStems live;
+    auto* pEstimator = mixxx::StemEstimator::instance();
+    if (!pEstimator) {
+        return live;
+    }
+    live.pStemTrack = pEstimator->trackForGroup(m_waveformRenderer->getGroup());
+    if (!live.pStemTrack) {
+        return live;
+    }
+    const auto* pFactory = WaveformWidgetFactory::instance();
+    switch (pFactory->getLiveStemView()) {
+    case LiveStemView::Ready:
+        live.stemView = true;
+        break;
+    case LiveStemView::WhenAdjusted:
+        live.stemView = m_pStemsActive && m_pStemsActive->toBool();
+        break;
+    case LiveStemView::Off:
+        break;
+    }
+    live.unseparated = pFactory->getLiveStemUnseparated();
+    live.unseparatedOpacity = pFactory->getLiveStemUnseparatedOpacity();
+    return live;
+}
+
+void WaveformRendererSignalBase::LiveStems::columnFactors(
+        SINT frame, float* pHeight, float* pColor) const {
+    *pHeight = 1.0f;
+    *pColor = 1.0f;
+    if (!stemView) {
+        return;
+    }
+    if (pStemTrack->isFrameDone(frame)) {
+        *pHeight = 0.0f;
+        return;
+    }
+    switch (unseparated) {
+    case LiveStemUnseparated::Blank:
+        *pHeight = 0.0f;
+        break;
+    case LiveStemUnseparated::DimSignal:
+        *pColor = unseparatedOpacity;
+        break;
+    case LiveStemUnseparated::KeepSignal:
+        break;
+    }
+}
+#endif
 
 void WaveformRendererSignalBase::setup(const QDomNode& node,
                                        const SkinContext& context) {

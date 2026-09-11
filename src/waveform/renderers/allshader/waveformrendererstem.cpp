@@ -47,6 +47,9 @@ void WaveformRendererStem::onSetup(const QDomNode&) {
 }
 
 bool WaveformRendererStem::init() {
+    if (!WaveformRendererSignalBase::init()) {
+        return false;
+    }
     for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
         QString stemGroup = EngineDeck::getGroupForStem(m_waveformRenderer->getGroup(), stemIdx);
         m_pStemGain.emplace_back(
@@ -133,9 +136,34 @@ bool WaveformRendererStem::preprocessInner() {
     if (data == nullptr) {
         return false;
     }
+#ifdef __LIVE_STEMS__
+    // The signal renderers stand back from exactly the columns drawn here;
+    // both sides decide from the same LiveStems.
+    const LiveStems live = liveStems();
+    const bool useLive = !waveform->hasStem() && live.pStemTrack && live.stemView;
+    if (!useLive && !waveform->hasStem()) {
+        return false;
+    }
+    const double audioVisualRatio = waveform->getAudioVisualRatio();
+    const int numStems = useLive ? live.pStemTrack->numStems() : stemInfo.size();
+#else
     // If this waveform doesn't contain stem data, skip the rendering
     if (!waveform->hasStem()) {
         return false;
+    }
+    const int numStems = stemInfo.size();
+#endif
+    const auto* pColors = m_waveformRenderer->getWaveformSignalColors();
+    float stemColors[mixxx::kMaxSupportedStems][4] = {};
+    for (int stemIdx = 0; stemIdx < std::min<int>(numStems, mixxx::kMaxSupportedStems); ++stemIdx) {
+        QColor color = pColors->getStemColor(stemIdx);
+        if (!color.isValid() && stemIdx < stemInfo.size()) {
+            color = stemInfo[stemIdx].getColor();
+        }
+        stemColors[stemIdx][0] = static_cast<float>(color.redF());
+        stemColors[stemIdx][1] = static_cast<float>(color.greenF());
+        stemColors[stemIdx][2] = static_cast<float>(color.blueF());
+        stemColors[stemIdx][3] = static_cast<float>(color.alphaF());
     }
 
     uint selectedStems = m_waveformRenderer->getSelectedStems();
@@ -163,7 +191,7 @@ bool WaveformRendererStem::preprocessInner() {
     getGains(&allGain, nullptr, nullptr, nullptr);
 
     const float breadth = static_cast<float>(m_waveformRenderer->getBreadth());
-    const float stemBreadth = m_splitStemTracks ? breadth / 4.0f : 0;
+    const float stemBreadth = m_splitStemTracks ? breadth / std::max(1, numStems) : 0;
     const float halfBreadth = (m_splitStemTracks ? stemBreadth : breadth) / 2.0f;
 
     const float heightFactor = allGain * halfBreadth / m_maxValue;
@@ -191,34 +219,65 @@ bool WaveformRendererStem::preprocessInner() {
     const double maxSamplingRange = visualIncrementPerPixel / 2.0;
 
     for (int visualIdx = 0; visualIdx < stripLength; visualIdx++) {
+        const float fVisualIdx = static_cast<float>(visualIdx) * invDevicePixelRatio;
+        const int visualFrameStart = std::lround(xVisualFrame - maxSamplingRange);
+        const int visualFrameStop = std::lround(xVisualFrame + maxSamplingRange);
+        const int visualIndexStart = std::max(visualFrameStart * 2, 0);
+        const int visualIndexStop =
+                std::min(std::max(visualFrameStop, visualFrameStart + 1) * 2, dataSize - 1);
+#ifdef __LIVE_STEMS__
+        bool columnReady = true;
+        SINT liveStart = 0;
+        SINT liveStop = 0;
+        if (useLive) {
+            const mixxx::StemTrack& stemTrack = *live.pStemTrack;
+            columnReady = stemTrack.isFrameDone(
+                    static_cast<SINT>(xVisualFrame * audioVisualRatio));
+            liveStart = stemTrack.visualFrameOf(
+                    static_cast<SINT>((visualIndexStart / 2) * audioVisualRatio));
+            liveStop = std::min(stemTrack.numVisualFrames(),
+                    std::max(liveStart + 1,
+                            stemTrack.visualFrameOf(static_cast<SINT>(
+                                    (visualIndexStop / 2) * audioVisualRatio))));
+        }
+#else
+        const bool columnReady = true;
+#endif
         int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
             // Stem is drawn twice with different opacity level, this allow to
             // see the maximum signal by transparency
             for (int layerIdx = 0; layerIdx < 2; layerIdx++) {
-                QColor stemColor = stemInfo[stemIdx].getColor();
-                float color_r = stemColor.redF(),
-                      color_g = stemColor.greenF(),
-                      color_b = stemColor.blueF(),
-                      color_a = stemColor.alphaF() * (layerIdx ? m_opacity : m_outlineOpacity);
-                const int visualFrameStart = std::lround(xVisualFrame - maxSamplingRange);
-                const int visualFrameStop = std::lround(xVisualFrame + maxSamplingRange);
-
-                const int visualIndexStart = std::max(visualFrameStart * 2, 0);
-                const int visualIndexStop =
-                        std::min(std::max(visualFrameStop, visualFrameStart + 1) * 2, dataSize - 1);
-
-                const float fVisualIdx = static_cast<float>(visualIdx) * invDevicePixelRatio;
+                // The vertex count is fixed per column, so a stem or column
+                // with nothing to show still emits its rectangle, at zero height.
+                const bool present = columnReady && stemIdx < numStems;
+                const float color_r = stemColors[stemIdx][0];
+                const float color_g = stemColors[stemIdx][1];
+                const float color_b = stemColors[stemIdx][2];
+                const float color_a = stemColors[stemIdx][3] *
+                        (layerIdx ? m_opacity : m_outlineOpacity);
 
                 // Find the max values for current eq in the waveform data.
                 // - Max of left and right
                 uchar u8max{};
-                for (int chn = 0; chn < 2; chn++) {
-                    // data is interleaved left / right
-                    for (int i = visualIndexStart + chn; i < visualIndexStop + chn; i += 2) {
-                        const WaveformData& waveformData = data[i];
+                if (present) {
+                    for (int chn = 0; chn < 2; chn++) {
+#ifdef __LIVE_STEMS__
+                        if (useLive) {
+                            for (SINT liveFrame = liveStart; liveFrame < liveStop; ++liveFrame) {
+                                u8max = math_max(u8max,
+                                        live.pStemTrack->visualData(liveFrame)[stemIdx * 2 + chn]
+                                                .load(std::memory_order_relaxed));
+                            }
+                            continue;
+                        }
+#endif
+                        // data is interleaved left / right
+                        for (int i = visualIndexStart + chn; i < visualIndexStop + chn; i += 2) {
+                            const WaveformData& waveformData = data[i];
 
-                        u8max = math_max(u8max, waveformData.stems[stemIdx]);
+                            u8max = math_max(u8max, waveformData.stems[stemIdx]);
+                        }
                     }
                 }
 

@@ -99,7 +99,7 @@ class LiveStemsTest : public MixxxTest, SoundSourceProviderRegistration {
 };
 
 TEST_F(LiveStemsTest, MatchesPythonReference) {
-    mixxx::StemTrack track(m_numFrames, 4);
+    mixxx::StemTrack track(m_numFrames, 4, 44100, false);
     mixxx::SpleeterProcessor::Run run;
     m_pProcessor->beginRun(&run);
     const auto reader = [this](SINT frame, SINT numFrames, float* out) {
@@ -120,8 +120,8 @@ TEST_F(LiveStemsTest, MatchesPythonReference) {
 }
 
 TEST_F(LiveStemsTest, RestartMidTrackMatchesFullRun) {
-    mixxx::StemTrack full(m_numFrames, 4);
-    mixxx::StemTrack partial(m_numFrames, 4);
+    mixxx::StemTrack full(m_numFrames, 4, 44100, false);
+    mixxx::StemTrack partial(m_numFrames, 4, 44100, false);
     const auto reader = [this](SINT frame, SINT numFrames, float* out) {
         readMix(frame, numFrames, out);
     };
@@ -144,6 +144,52 @@ TEST_F(LiveStemsTest, RestartMidTrackMatchesFullRun) {
             ASSERT_EQ(full.frameData(f)[i], partial.frameData(f)[i]) << "frame " << f;
         }
     }
+}
+
+// The visual bytes need no model
+void fillSine(mixxx::StemTrack* pTrack, int stem, SINT numFrames, double radPerFrame) {
+    for (SINT f = 0; f < numFrames; ++f) {
+        int16_t* data = pTrack->frameData(f);
+        for (int i = 0; i < pTrack->numStems() * 2; ++i) {
+            data[i] = 0;
+        }
+        const auto v = static_cast<int16_t>(std::lround(32767.0 * std::sin(f * radPerFrame)));
+        data[stem * 2] = v;
+        data[stem * 2 + 1] = v;
+    }
+}
+
+TEST(StemTrackVisualTest, PeakBytesFollowRegionFlags) {
+    const SINT numFrames = mixxx::StemTrack::kRegionFrames + 5000;
+    mixxx::StemTrack track(numFrames, 4, 44100, false);
+    EXPECT_DOUBLE_EQ(track.visualRatio(), 100.0);
+    EXPECT_EQ(track.numVisualFrames(), numFrames / 100 + 1);
+    // Half a period fits in one stride, so every stride holds a peak sample
+    fillSine(&track, 2, numFrames, 0.05);
+    track.markRegionDone(0);
+    const SINT lastDoneFrame = mixxx::StemTrack::regionFirstFrame(1) - 1;
+    const auto* early = track.visualData(track.visualFrameOf(1000));
+    EXPECT_EQ(early[2 * 2].load(), 255);
+    EXPECT_EQ(early[2 * 2 + 1].load(), 255);
+    EXPECT_EQ(early[0].load(), 0);
+    EXPECT_EQ(early[3 * 2].load(), 0);
+    EXPECT_TRUE(track.isFrameDone(lastDoneFrame));
+    EXPECT_FALSE(track.isFrameDone(lastDoneFrame + 1));
+    const auto* late = track.visualData(track.visualFrameOf(lastDoneFrame + 2000));
+    EXPECT_EQ(late[2 * 2].load(), 0);
+    track.markRegionDone(1);
+    EXPECT_EQ(late[2 * 2].load(), 255);
+}
+
+TEST(StemTrackVisualTest, RmsBytesMatchPeakForASine) {
+    const SINT numFrames = 20000;
+    mixxx::StemTrack track(numFrames, 4, 48000, true);
+    // Many periods per stride so the stride's mean square sits at one half
+    fillSine(&track, 0, numFrames, 0.5);
+    track.markRegionDone(0);
+    const auto* bytes = track.visualData(track.visualFrameOf(10000));
+    EXPECT_NEAR(bytes[0].load(), 255, 4);
+    EXPECT_EQ(bytes[2].load(), 0);
 }
 
 } // namespace

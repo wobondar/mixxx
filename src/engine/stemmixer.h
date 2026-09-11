@@ -14,8 +14,9 @@
 ///     out = mix + sum_k (g_k - 1) * stem_k
 ///
 /// With every gain at unity the file plays untouched. Frames whose region
-/// the separator has not finished are left alone, so a fader touched ahead
-/// of the frontier has no effect there rather than producing garbage.
+/// the separator has not finished are left alone, so a fader touched in an
+/// unseparated part of the track has no effect there rather than producing
+/// garbage.
 /// Gains ramp linearly over each read to stay click-free.
 ///
 /// Engine thread only, except setTrack, which the owner calls from the main

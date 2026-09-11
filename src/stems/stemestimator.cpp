@@ -166,13 +166,20 @@ StemEstimator::~StemEstimator() {
 }
 
 StemTrackPointer StemEstimator::requestTrack(
-        const QString& group, TrackPointer pTrack, SINT numFrames) {
+        const QString& group, TrackPointer pTrack, SINT numFrames, int sampleRate) {
     if (!isEnabled() || !pTrack || numFrames <= 0) {
         return nullptr;
     }
+    // The visual bytes follow the waveform analyzer's envelope setting so
+    // stems and the RGB waveform of the same track draw at the same height.
+    const bool rmsEnvelope = m_pConfig->getValue<int>(
+                                     ConfigKey(QStringLiteral("[Waveform]"),
+                                             QStringLiteral("Envelope")),
+                                     0) == 1;
     auto pJob = std::make_shared<Job>();
     pJob->pTrack = pTrack;
-    pJob->pStemTrack = std::make_shared<StemTrack>(numFrames, m_presentation.numStems);
+    pJob->pStemTrack = std::make_shared<StemTrack>(
+            numFrames, m_presentation.numStems, sampleRate, rmsEnvelope);
     for (const QString& name : m_pProcessor->stemNames()) {
         pJob->fold.push_back(m_presentation.fold.at(name));
     }
@@ -183,6 +190,7 @@ StemTrackPointer StemEstimator::requestTrack(
             it->second->cancelled.store(true);
         }
         m_jobs[group] = pJob;
+        m_deckTracks[group] = pJob->pStemTrack;
     }
     m_wake.notify_all();
     return pJob->pStemTrack;
@@ -195,6 +203,13 @@ void StemEstimator::releaseTrack(const QString& group) {
         it->second->cancelled.store(true);
         m_jobs.erase(it);
     }
+    m_deckTracks.erase(group);
+}
+
+StemTrackPointer StemEstimator::trackForGroup(const QString& group) {
+    const std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_deckTracks.find(group);
+    return it == m_deckTracks.end() ? nullptr : it->second;
 }
 
 void StemEstimator::workerLoop() {

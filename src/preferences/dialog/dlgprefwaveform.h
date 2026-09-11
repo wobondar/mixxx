@@ -71,6 +71,9 @@ class DlgPrefWaveform : public DlgPreferencePage, public Ui::DlgPrefWaveformDlg 
     void slotStemReorderOnChange(bool value);
     void slotStemOutlineOpacity(float value);
     void slotStemDisplayMode(int index);
+    void slotLiveStemView(int index);
+    void slotLiveStemUnseparated(int index);
+    void slotLiveStemUnseparatedOpacity(double value);
     // overview options
     void slotSetWaveformOverviewType();
     void slotSetOverviewMinuteMarkers(bool minuteMarkers);

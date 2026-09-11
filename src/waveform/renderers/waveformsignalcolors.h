@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QDomNode>
 
+#include "engine/engine.h"
 #include "skin/legacy/skincontext.h"
 
 class WaveformSignalColors {
@@ -63,6 +64,12 @@ class WaveformSignalColors {
     inline int getDimBrightThreshold() const {
         return m_dimBrightThreshold;
     }
+#ifdef __STEM__
+    /// Skin override for stem N's colour, invalid when the skin sets none.
+    inline const QColor& getStemColor(int stemIdx) const {
+        return m_stemColors[stemIdx];
+    }
+#endif
 
   protected:
     void fallBackFromSignalColor();
@@ -88,4 +95,7 @@ class WaveformSignalColors {
     QColor m_passthroughLabelColor;
     QColor m_bgColor;
     int m_dimBrightThreshold;
+#ifdef __STEM__
+    QColor m_stemColors[mixxx::kMaxSupportedStems];
+#endif
 };
