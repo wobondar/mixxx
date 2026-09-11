@@ -198,6 +198,45 @@
       </item>
 
       <item row="4" column="0">
+       <widget class="QLabel" name="playheadRegionsLabel">
+        <property name="text">
+         <string>Ready at playhead after</string>
+        </property>
+        <property name="buddy">
+         <cstring>playheadRegionsSpinBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QSpinBox" name="playheadRegionsSpinBox">
+        <property name="toolTip">
+         <string>Regions from the playhead onward that must be separated before the deck reports its stems usable there. Raise it if the indicator flickers while playing.</string>
+        </property>
+        <property name="suffix">
+         <string> regions</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>16</number>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>110</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+
+      <item row="5" column="0">
        <widget class="QLabel" name="modelDirLabel">
         <property name="text">
          <string>Model directory</string>
@@ -207,7 +246,7 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="1" colspan="2">
+      <item row="5" column="1" colspan="2">
        <layout class="QHBoxLayout" name="modelDirLayout">
         <item>
          <widget class="QLineEdit" name="modelDirLineEdit">
@@ -226,13 +265,13 @@
        </layout>
       </item>
 
-      <item row="5" column="0" colspan="3">
+      <item row="6" column="0" colspan="3">
        <widget class="QLabel" name="restartHintLabel">
         <property name="wordWrap">
          <bool>true</bool>
         </property>
         <property name="text">
-         <string>Changes to stems, bandwidth, threads and the model directory take effect after restarting Mixxx. Deck and cache settings apply to the next track loaded.</string>
+         <string>Changes to stems, bandwidth, threads and the model directory take effect after restarting Mixxx. Deck and cache settings apply to the next track loaded; the playhead setting applies at once.</string>
         </property>
        </widget>
       </item>

@@ -40,6 +40,10 @@ class StemMixer {
     void setPlayPosition(SINT frame);
     /// Fraction of the track's regions the separator has finished.
     float readyFraction() const;
+    /// True when the region under the playhead and the given number of
+    /// regions from it onward are finished, clamped to the end of the
+    /// track so the outro can report ready.
+    bool isPlayheadReady(int regions) const;
     /// True while any gain is off unity on a track with stems.
     bool isActive() const;
 

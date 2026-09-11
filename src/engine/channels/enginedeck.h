@@ -107,7 +107,10 @@ class EngineDeck : public EngineChannel, public AudioDestination {
 #endif
 #ifdef __LIVE_STEMS__
     void processLiveStems();
+    void processNativeStemsState();
+    void setStemsState(double ready, double playheadReady, double active);
     std::unique_ptr<ControlObject> m_pStemsReady;
+    std::unique_ptr<ControlObject> m_pStemsPlayheadReady;
     std::unique_ptr<ControlObject> m_pStemsActive;
 #endif
 

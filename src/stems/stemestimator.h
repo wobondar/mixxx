@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <map>
@@ -31,6 +32,7 @@ constexpr int kDefaultBins = 1536;
 constexpr int kDefaultThreads = 1;
 constexpr bool kDefaultCache = true;
 constexpr int kDefaultCacheMaxMb = 50 * 1024;
+constexpr int kDefaultPlayheadRegions = 1;
 constexpr const char* kCacheSuffix = ".stems";
 
 inline QString defaultModelDirectory(const UserSettingsPointer& pConfig) {
@@ -65,7 +67,7 @@ struct StemPresentation {
 ///
 /// Preferences ([LiveStems]): mode (0 disables, otherwise the stem count),
 /// deckN, bins, threads, model_dir (defaults to <settings>/stemmodels),
-/// cache, cache_max_mb.
+/// cache, cache_max_mb, playhead_regions.
 class StemEstimator : public QObject {
     Q_OBJECT
   public:
@@ -87,6 +89,16 @@ class StemEstimator : public QObject {
     /// preferences are read per job, so they apply to the next track loaded
     /// without a restart.
     bool isDeckEnabled(const QString& group) const;
+
+    /// Regions from the playhead onward that must be done before a deck
+    /// reports its stems usable at the playhead. The preferences page sets
+    /// it without a restart; the engine thread reads it every buffer.
+    int playheadRegions() const {
+        return m_playheadRegions.load(std::memory_order_relaxed);
+    }
+    void setPlayheadRegions(int regions) {
+        m_playheadRegions.store(std::max(1, regions), std::memory_order_relaxed);
+    }
 
     /// Registers a loaded track for separation and returns the buffer the
     /// deck mixes from. Null when disabled or the track cannot be separated.
@@ -130,6 +142,7 @@ class StemEstimator : public QObject {
     std::unique_ptr<SpleeterProcessor> m_pProcessor;
     StemPresentation m_presentation;
     int m_bins = 0;
+    std::atomic<int> m_playheadRegions;
     std::mutex m_mutex;
     std::condition_variable m_wake;
     std::map<QString, std::shared_ptr<Job>> m_jobs;

@@ -1,5 +1,6 @@
 #include "engine/stemmixer.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -28,6 +29,21 @@ float StemMixer::readyFraction() const {
         return 0.0f;
     }
     return static_cast<float>(pTrack->doneRegionCount()) / pTrack->numRegions();
+}
+
+bool StemMixer::isPlayheadReady(int regions) const {
+    mixxx::StemTrack* pTrack = m_pTrack.load(std::memory_order_acquire);
+    if (!pTrack || pTrack->numRegions() == 0) {
+        return false;
+    }
+    const SINT first = mixxx::StemTrack::regionOf(pTrack->wantedFrame());
+    const SINT last = std::min(first + regions - 1, pTrack->numRegions() - 1);
+    for (SINT region = first; region <= last; ++region) {
+        if (!pTrack->isRegionDone(region)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool StemMixer::isActive() const {

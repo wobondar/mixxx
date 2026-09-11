@@ -11,6 +11,7 @@
 #include "engine/enginepregain.h"
 #ifdef __LIVE_STEMS__
 #include "engine/stemmixer.h"
+#include "stems/stemestimator.h"
 #endif
 #include "moc_enginedeck.cpp"
 #include "track/track.h"
@@ -87,6 +88,9 @@ EngineDeck::EngineDeck(
 #ifdef __LIVE_STEMS__
     m_pStemsReady = std::make_unique<ControlObject>(ConfigKey(getGroup(), "stems_ready"));
     m_pStemsReady->setReadOnly();
+    m_pStemsPlayheadReady = std::make_unique<ControlObject>(
+            ConfigKey(getGroup(), "stems_playhead_ready"));
+    m_pStemsPlayheadReady->setReadOnly();
     m_pStemsActive = std::make_unique<ControlObject>(ConfigKey(getGroup(), "stems_active"));
     m_pStemsActive->setReadOnly();
 #endif
@@ -126,11 +130,28 @@ void EngineDeck::processLiveStems() {
                         ? 0.0f
                         : static_cast<float>(m_stemGain[stemIdx]->get()));
     }
-    const double ready = pMixer->readyFraction();
+    const auto* pEstimator = mixxx::StemEstimator::instance();
+    const int regions = pEstimator ? pEstimator->playheadRegions() : 1;
+    setStemsState(pMixer->readyFraction(),
+            pMixer->isPlayheadReady(regions) ? 1.0 : 0.0,
+            pMixer->isActive() ? 1.0 : 0.0);
+}
+
+// A native stem file carries every stem from the first frame, and its
+// output is the sum of the lanes, so nothing here can diverge from a
+// file. Written every buffer so the controls cannot keep what the
+// previous track on this deck left in them.
+void EngineDeck::processNativeStemsState() {
+    setStemsState(1.0, 1.0, 0.0);
+}
+
+void EngineDeck::setStemsState(double ready, double playheadReady, double active) {
     if (ready != m_pStemsReady->get()) {
         m_pStemsReady->forceSet(ready);
     }
-    const double active = pMixer->isActive() ? 1.0 : 0.0;
+    if (playheadReady != m_pStemsPlayheadReady->get()) {
+        m_pStemsPlayheadReady->forceSet(playheadReady);
+    }
     if (active != m_pStemsActive->get()) {
         m_pStemsActive->forceSet(active);
     }
@@ -278,6 +299,11 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
 #ifdef __STEM__
         } else {
             // Process multiple stereo channels (stems) and mix them together
+#ifdef __LIVE_STEMS__
+            if (isPrimaryDeck()) {
+                processNativeStemsState();
+            }
+#endif
             processStem(pOut, bufferSize);
         }
 #endif

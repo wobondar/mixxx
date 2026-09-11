@@ -123,6 +123,9 @@ bool StemEstimator::isDeckEnabled(const QString& group) const {
 
 StemEstimator::StemEstimator(UserSettingsPointer pConfig)
         : m_pConfig(pConfig),
+          m_playheadRegions(std::max(1,
+                  pConfig->getValue(ConfigKey(stemconfig::kGroup, "playhead_regions"),
+                          stemconfig::kDefaultPlayheadRegions))),
           m_stop(false) {
     const int mode = pConfig->getValue(
             ConfigKey(stemconfig::kGroup, "mode"), stemconfig::kDefaultMode);

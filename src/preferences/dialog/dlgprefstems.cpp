@@ -53,6 +53,8 @@ void DlgPrefStems::slotUpdate() {
                 ConfigKey(kGroup, QStringLiteral("deck%1").arg(i + 1)), false));
     }
     threadsSpinBox->setValue(m_pConfig->getValue(ConfigKey(kGroup, "threads"), kDefaultThreads));
+    playheadRegionsSpinBox->setValue(m_pConfig->getValue(
+            ConfigKey(kGroup, "playhead_regions"), kDefaultPlayheadRegions));
     modelDirLineEdit->setText(modelDirectory(m_pConfig));
     cacheCheckBox->setChecked(m_pConfig->getValue(ConfigKey(kGroup, "cache"), kDefaultCache));
     cacheSizeSpinBox->setValue(
@@ -68,6 +70,10 @@ void DlgPrefStems::slotApply() {
                 deckCheckBoxes()[i]->isChecked());
     }
     m_pConfig->setValue(ConfigKey(kGroup, "threads"), threadsSpinBox->value());
+    m_pConfig->setValue(ConfigKey(kGroup, "playhead_regions"), playheadRegionsSpinBox->value());
+    if (auto* pEstimator = mixxx::StemEstimator::instance()) {
+        pEstimator->setPlayheadRegions(playheadRegionsSpinBox->value());
+    }
     // The default follows the settings directory; only a chosen path is stored
     if (modelDirLineEdit->text() == mixxx::stemconfig::defaultModelDirectory(m_pConfig)) {
         m_pConfig->remove(ConfigKey(kGroup, "model_dir"));
@@ -86,6 +92,7 @@ void DlgPrefStems::slotResetToDefaults() {
         pCheckBox->setChecked(false);
     }
     threadsSpinBox->setValue(kDefaultThreads);
+    playheadRegionsSpinBox->setValue(kDefaultPlayheadRegions);
     modelDirLineEdit->setText(defaultModelDirectory(m_pConfig));
     cacheCheckBox->setChecked(kDefaultCache);
     cacheSizeSpinBox->setValue(kDefaultCacheMaxMb / 1024);
